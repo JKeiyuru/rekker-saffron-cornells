@@ -4,8 +4,8 @@ const axios = require("axios");
 let token; // Store the access token globally
 
 const createToken = async () => {
-  const secret = "sGRyCIXbbsCmMhFrjiljAW36IenetFytMfNnGGfVXH1QhAzgcFmUXHmN1RBkKGKX"; // Replace with your M-Pesa consumer secret
-  const consumer = "qnoJN723IiD1nen7v4UqR6TOyVYp768O1RlDZUZ628V6s1AW"; // Replace with your M-Pesa consumer key
+  const secret = process.env.MPESA_CONSUMER_SECRET;
+  const consumer = process.env.MPESA_CONSUMER_KEY;
   const auth = Buffer.from(`${consumer}:${secret}`).toString("base64");
 
   try {
@@ -26,8 +26,8 @@ const createToken = async () => {
 };
 
 const stkPush = async (phone, amount, callbackUrl) => {
-  const shortCode = 174379; // Replace with your M-Pesa business shortcode
-  const passkey = "bfb279f9aa9bdbcf158e97dd71a467cd2e0c893059b10f78e6b72ada1ed2c919"; // Replace with your M-Pesa passkey
+  const shortCode = process.env.MPESA_SHORTCODE;
+  const passkey = process.env.MPESA_PASSKEY;
 
   const date = new Date();
   const timestamp =
@@ -37,6 +37,7 @@ const stkPush = async (phone, amount, callbackUrl) => {
     ("0" + date.getHours()).slice(-2) +
     ("0" + date.getMinutes()).slice(-2) +
     ("0" + date.getSeconds()).slice(-2);
+
   const password = Buffer.from(shortCode + passkey + timestamp).toString("base64");
 
   const data = {
