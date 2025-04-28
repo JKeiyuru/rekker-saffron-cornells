@@ -1,3 +1,5 @@
+/* eslint-disable react/jsx-key */
+/* eslint-disable no-unused-vars */
 import Address from "@/components/shopping-view/address";
 import img from "../../assets/account.jpg";
 import { useDispatch, useSelector } from "react-redux";
@@ -5,8 +7,8 @@ import UserCartItemsContent from "@/components/shopping-view/cart-items-content"
 import { Button } from "@/components/ui/button";
 import { useState } from "react";
 import { createNewOrder } from "@/store/shop/order-slice";
-import { Navigate } from "react-router-dom";
 import { useToast } from "@/components/ui/use-toast";
+import axios from "axios";
 
 function ShoppingCheckout() {
   const { cartItems } = useSelector((state) => state.shopCart);
@@ -14,6 +16,9 @@ function ShoppingCheckout() {
   const { approvalURL } = useSelector((state) => state.shopOrder);
   const [currentSelectedAddress, setCurrentSelectedAddress] = useState(null);
   const [isPaymentStart, setIsPaymemntStart] = useState(false);
+  const [isMpesaPaymentLoading, setIsMpesaPaymentLoading] = useState(false);
+  const [showPhoneInput, setShowPhoneInput] = useState(false); // State to show/hide phone input
+  const [phoneNumber, setPhoneNumber] = useState(""); // State to store the phone number
   const dispatch = useDispatch();
   const { toast } = useToast();
 
@@ -91,6 +96,96 @@ function ShoppingCheckout() {
     });
   }
 
+  const handleMpesaPayment = async () => {
+    if (cartItems.length === 0) {
+      toast({
+        title: "Your cart is empty. Please add items to proceed",
+        variant: "destructive",
+      });
+      return;
+    }
+    if (currentSelectedAddress === null) {
+      toast({
+        title: "Please select one address to proceed.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Show the phone input field if it's not already visible
+    if (!showPhoneInput) {
+      setShowPhoneInput(true);
+      return;
+    }
+
+    // Validate the phone number
+    if (!phoneNumber || phoneNumber.length < 10) {
+      toast({
+        title: "Please enter a valid phone number.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsMpesaPaymentLoading(true);
+
+    const orderData = {
+      userId: user?.id,
+      cartId: cartItems?._id,
+      cartItems: cartItems.items.map((singleCartItem) => ({
+        productId: singleCartItem?.productId,
+        title: singleCartItem?.title,
+        image: singleCartItem?.image,
+        price:
+          singleCartItem?.salePrice > 0
+            ? singleCartItem?.salePrice
+            : singleCartItem?.price,
+        quantity: singleCartItem?.quantity,
+      })),
+      addressInfo: {
+        addressId: currentSelectedAddress?._id,
+        address: currentSelectedAddress?.address,
+        city: currentSelectedAddress?.city,
+        pincode: currentSelectedAddress?.pincode,
+        phone: currentSelectedAddress?.phone,
+        notes: currentSelectedAddress?.notes,
+      },
+      orderStatus: "pending",
+      paymentMethod: "mpesa",
+      paymentStatus: "pending",
+      totalAmount: totalCartAmount,
+      orderDate: new Date(),
+      orderUpdateDate: new Date(),
+      paymentId: "",
+      payerId: "",
+    };
+
+    try {
+      const response = await axios.post("/api/shop/order/mpesa-payment", {
+        phone: phoneNumber, // Use the entered phone number
+        amount: totalCartAmount,
+        callbackUrl: "https://yourdomain.com/mpesa-callback", // Replace with your callback URL
+        orderData, // Pass the order data to the backend
+      });
+
+      if (response.data.success) {
+        toast({
+          title: "M-Pesa payment initiated. Please check your phone.",
+          variant: "default",
+        });
+        setShowPhoneInput(false); // Hide the phone input after successful initiation
+        setPhoneNumber(""); // Clear the phone number input
+      }
+    } catch (error) {
+      toast({
+        title: "M-Pesa payment failed. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsMpesaPaymentLoading(false);
+    }
+  };
+
   if (approvalURL) {
     window.location.href = approvalURL;
   }
@@ -122,6 +217,30 @@ function ShoppingCheckout() {
               {isPaymentStart
                 ? "Processing Paypal Payment..."
                 : "Checkout with Paypal"}
+            </Button>
+          </div>
+          <div className="mt-4 w-full">
+            {showPhoneInput && (
+              <div className="mb-4">
+                <input
+                  type="text"
+                  placeholder="Enter your phone number"
+                  value={phoneNumber}
+                  onChange={(e) => setPhoneNumber(e.target.value)}
+                  className="w-full p-2 border border-gray-300 rounded-md"
+                />
+              </div>
+            )}
+            <Button
+              onClick={handleMpesaPayment}
+              className="w-full bg-green-600 hover:bg-green-700"
+              disabled={isMpesaPaymentLoading}
+            >
+              {isMpesaPaymentLoading
+                ? "Processing M-Pesa Payment..."
+                : showPhoneInput
+                ? "Confirm M-Pesa Payment"
+                : "Checkout with M-Pesa"}
             </Button>
           </div>
         </div>

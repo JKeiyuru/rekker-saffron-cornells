@@ -1,4 +1,5 @@
 const paypal = require("../../helpers/paypal");
+const { createToken, stkPush } = require("../../helpers/mpesa"); // Import M-Pesa helper
 const Order = require("../../models/Order");
 const Cart = require("../../models/Cart");
 const Product = require("../../models/Product");
@@ -147,6 +148,34 @@ const capturePayment = async (req, res) => {
   }
 };
 
+const initiateMpesaPayment = async (req, res) => {
+  const { phone, amount, callbackUrl } = req.body;
+
+  try {
+    await createToken();
+    const stkResponse = await stkPush(phone, amount, callbackUrl);
+
+    // Save the order details in the database
+    const newOrder = new Order({
+      userId: req.body.userId, // Assuming userId is passed in the request
+      cartItems: req.body.cartItems, // Assuming cartItems is passed in the request
+      addressInfo: req.body.addressInfo, // Assuming addressInfo is passed in the request
+      paymentMethod: "mpesa",
+      paymentStatus: "pending",
+      totalAmount: amount,
+      orderDate: new Date(),
+      orderUpdateDate: new Date(),
+    });
+
+    await newOrder.save();
+
+    res.status(200).json({ success: true, data: stkResponse, orderId: newOrder._id });
+  } catch (error) {
+    console.error("M-Pesa payment error:", error);
+    res.status(500).json({ success: false, message: "M-Pesa payment failed" });
+  }
+};
+
 const getAllOrdersByUser = async (req, res) => {
   try {
     const { userId } = req.params;
@@ -204,4 +233,5 @@ module.exports = {
   capturePayment,
   getAllOrdersByUser,
   getOrderDetails,
+  initiateMpesaPayment, // Add the new function
 };

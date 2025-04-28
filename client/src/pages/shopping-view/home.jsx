@@ -5,15 +5,26 @@ import bannerThree from "../../assets/banner-3.webp";
 import {
   Airplay,
   BabyIcon,
+  BatteryFullIcon,
+  BookOpenIcon,
   ChevronLeftIcon,
   ChevronRightIcon,
   CloudLightning,
+  DollarSignIcon,
+  GiftIcon,
   Heater,
+  HomeIcon,
   Images,
+  PaintbrushIcon,
+  PenToolIcon,
+  PuzzleIcon,
   Shirt,
   ShirtIcon,
+  ShoppingBagIcon,
   ShoppingBasket,
+  StopCircleIcon,
   UmbrellaIcon,
+  UsersIcon,
   WashingMachine,
   WatchIcon,
 } from "lucide-react";
@@ -32,11 +43,16 @@ import ProductDetailsDialog from "@/components/shopping-view/product-details";
 import { getFeatureImages } from "@/store/common-slice";
 
 const categoriesWithIcon = [
-  { id: "men", label: "Men", icon: ShirtIcon },
-  { id: "women", label: "Women", icon: CloudLightning },
-  { id: "kids", label: "Kids", icon: BabyIcon },
-  { id: "accessories", label: "Accessories", icon: WatchIcon },
-  { id: "footwear", label: "Footwear", icon: UmbrellaIcon },
+  { id: "home", label: "Home", icon: HomeIcon },
+  { id: "under-100", label: "Under 100/", icon: DollarSignIcon },
+  { id: "educational-toys", label: "Educational Toys", icon: BookOpenIcon },
+  { id: "pretend-play", label: "Pretend Play & Role Play", icon: UsersIcon },
+  { id: "action-outdoor", label: "Action & Outdoor", icon: BatteryFullIcon },
+  { id: "card-board-games", label: "Card & Board Games", icon: PuzzleIcon },
+  { id: "party-supplies", label: "Party Supplies", icon: GiftIcon },
+  { id: "stationery-school", label: "Stationery & School", icon: PenToolIcon },
+  { id: "fashion-accessories", label: "Fashion & Accessories", icon: ShoppingBagIcon },
+  { id: "home-decor", label: "Home & Decor", icon: PaintbrushIcon },
 ];
 
 const brandsWithIcon = [
@@ -166,7 +182,7 @@ function ShoppingHome() {
           <h2 className="text-3xl font-bold text-center mb-8">
             Shop by category
           </h2>
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4 bg-white">
             {categoriesWithIcon.map((categoryItem) => (
               <Card
                 onClick={() =>
@@ -187,7 +203,7 @@ function ShoppingHome() {
       <section className="py-12 bg-gray-50">
         <div className="container mx-auto px-4">
           <h2 className="text-3xl font-bold text-center mb-8">Shop by Brand</h2>
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 bg-white">
             {brandsWithIcon.map((brandItem) => (
               <Card
                 onClick={() => handleNavigateToListingPage(brandItem, "brand")}
