@@ -45,15 +45,16 @@ export const logoutUser = createAsyncThunk(
   async () => {
     const response = await axios.post(
       "https://nemmoh-ecommerce-server.onrender.com/api/auth/logout",
-      {},
-      {http://localhost:5000
-        withCredentials: true,
+      {}, 
+      {
+        withCredentials: true,  // Correct placement of withCredentials
       }
     );
 
     return response.data;
   }
 );
+
 
 export const checkAuth = createAsyncThunk(
   "/auth/checkauth",
