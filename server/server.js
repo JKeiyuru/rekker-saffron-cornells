@@ -32,22 +32,27 @@ const PORT = process.env.PORT || 5000;
 // Set allowed CORS origins
 const allowedOrigins = process.env.CORS_ORIGIN.split(",");
 
-// Middlewares
-app.use(
-  cors({
-    origin: allowedOrigins,
-    methods: ["GET", "POST", "DELETE", "PUT"],
-    allowedHeaders: [
-      "Content-Type",
-      "Authorization",
-      "Cache-Control",
-      "Expires",
-      "Pragma",
-    ],
-    credentials: true,
-  })
-);
+// Updated CORS middleware with dynamic origin checking
+const corsOptions = {
+  origin: function (origin, callback) {
+    if (!origin || allowedOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      callback(new Error("Not allowed by CORS"));
+    }
+  },
+  credentials: true,
+  methods: ["GET", "POST", "DELETE", "PUT"],
+  allowedHeaders: [
+    "Content-Type",
+    "Authorization",
+    "Cache-Control",
+    "Expires",
+    "Pragma",
+  ],
+};
 
+app.use(cors(corsOptions));
 app.use(cookieParser());
 app.use(express.json());
 
