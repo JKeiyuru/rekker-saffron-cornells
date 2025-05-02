@@ -35,7 +35,7 @@ const registerUser = async (req, res) => {
       message: "Registration successful",
     });
   } catch (e) {
-    console.error("Registration error:", e); // Better logging
+    console.error("Registration error:", e.message, e.stack); // Better logging
     res.status(500).json({
       success: false,
       message: "Internal server error during registration",

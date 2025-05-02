@@ -1,3 +1,5 @@
+/* eslint-disable no-unused-vars */
+/* eslint-disable react/jsx-key */
 import { Button } from "@/components/ui/button";
 import bannerOne from "../../assets/banner-1.webp";
 import bannerTwo from "../../assets/banner-2.webp";
@@ -56,13 +58,45 @@ const categoriesWithIcon = [
 ];
 
 const brandsWithIcon = [
+  // Toy brands
+  { id: "lego", label: "LEGO", icon: PuzzleIcon },
+  { id: "mattel", label: "Mattel", icon: BabyIcon },
+  { id: "hotwheels", label: "Hot Wheels", icon: Airplay },
+  { id: "nerf", label: "Nerf", icon: StopCircleIcon },
+  { id: "barbie", label: "Barbie", icon: UsersIcon },
+  { id: "hasbro", label: "Hasbro", icon: GiftIcon },
+  { id: "fisherprice", label: "Fisher-Price", icon: BookOpenIcon },
+
+  // Board games
+  { id: "monopoly", label: "Monopoly", icon: PuzzleIcon },
+  { id: "scrabble", label: "Scrabble", icon: PenToolIcon },
+  { id: "uno", label: "UNO", icon: DollarSignIcon },
+
+  // Skateboards & accessories
+  { id: "element", label: "Element", icon: CloudLightning },
+  { id: "zero", label: "Zero", icon: ShoppingBasket },
+  { id: "vans", label: "Vans", icon: ShirtIcon }, // also used for skate shoes
+
+  // Mugs & Tumblers
+  { id: "stanley", label: "Stanley", icon: UmbrellaIcon },
+  { id: "hydroflask", label: "Hydro Flask", icon: WashingMachine },
+
+  // Shoes (doll/flat shoes & sports)
+  { id: "crocs", label: "Crocs", icon: Shirt },
+  { id: "bata", label: "Bata", icon: PaintbrushIcon },
+
+  // Balls & sports
   { id: "nike", label: "Nike", icon: Shirt },
   { id: "adidas", label: "Adidas", icon: WashingMachine },
   { id: "puma", label: "Puma", icon: ShoppingBasket },
-  { id: "levi", label: "Levi's", icon: Airplay },
-  { id: "zara", label: "Zara", icon: Images },
-  { id: "h&m", label: "H&M", icon: Heater },
+  { id: "wilson", label: "Wilson", icon: WatchIcon }, // tennis
+  { id: "spalding", label: "Spalding", icon: Heater }, // basketball
+
+  // Swimming gear
+  { id: "speedo", label: "Speedo", icon: PenToolIcon },
+  { id: "arena", label: "Arena", icon: DollarSignIcon },
 ];
+
 function ShoppingHome() {
   const [currentSlide, setCurrentSlide] = useState(0);
   const { productList, productDetails } = useSelector(
@@ -205,6 +239,7 @@ function ShoppingHome() {
           <h2 className="text-3xl font-bold text-center mb-8">Shop by Brand</h2>
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 bg-white">
             {brandsWithIcon.map((brandItem) => (
+              // eslint-disable-next-line react/jsx-key
               <Card
                 onClick={() => handleNavigateToListingPage(brandItem, "brand")}
                 className="cursor-pointer hover:shadow-lg transition-shadow"
