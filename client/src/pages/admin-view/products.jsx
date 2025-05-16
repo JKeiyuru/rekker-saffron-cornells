@@ -1,3 +1,4 @@
+/* eslint-disable react/jsx-key */
 import ProductImageUpload from "@/components/admin-view/image-upload";
 import AdminProductTile from "@/components/admin-view/product-tile";
 import CommonForm from "@/components/common/form";
@@ -55,7 +56,7 @@ function AdminProducts() {
           })
         ).then((data) => {
           console.log(data, "edit");
-Foil Number (1)
+//Foil Number (1)
           if (data?.payload?.success) {
             dispatch(fetchAllProducts());
             setFormData(initialFormData);
