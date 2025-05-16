@@ -242,6 +242,7 @@ export const filterOptions = {
     { id: "home-decor", label: "Home & Decor" },
   ],
   brand: [
+    { id: "none", label: "None" },
     { id: "nike", label: "Nike" },
     { id: "adidas", label: "Adidas" },
     { id: "puma", label: "Puma" },

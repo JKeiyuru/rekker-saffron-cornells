@@ -7,6 +7,7 @@ import bannerThree from "../../assets/banner-3.webp";
 import {
   Airplay,
   BabyIcon,
+  BanIcon,
   BatteryFullIcon,
   BookOpenIcon,
   ChevronLeftIcon,
@@ -58,6 +59,7 @@ const categoriesWithIcon = [
 ];
 
 const brandsWithIcon = [
+{ id: "none", label: "NONE", icon: BanIcon },
   // Toy brands
   { id: "lego", label: "LEGO", icon: PuzzleIcon },
   { id: "mattel", label: "Mattel", icon: BabyIcon },
