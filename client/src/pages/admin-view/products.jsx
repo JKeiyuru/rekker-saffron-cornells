@@ -22,9 +22,9 @@ import { useDispatch, useSelector } from "react-redux";
 const initialFormData = {
   image: null,
   title: "",
-  description: "",
+  description: "Description",
   category: "",
-  brand: "",
+  brand: "None",
   price: "",
   salePrice: "",
   totalStock: "",
@@ -55,7 +55,7 @@ function AdminProducts() {
           })
         ).then((data) => {
           console.log(data, "edit");
-
+Foil Number (1)
           if (data?.payload?.success) {
             dispatch(fetchAllProducts());
             setFormData(initialFormData);
@@ -75,7 +75,7 @@ function AdminProducts() {
             setImageFile(null);
             setFormData(initialFormData);
             toast({
-              title: "Product add successfully",
+              title: "Product added successfully",
             });
           }
         });
