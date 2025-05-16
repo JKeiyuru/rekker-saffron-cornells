@@ -1,3 +1,4 @@
+//client/src/pages/admin-view/products.jsx
 /* eslint-disable react/jsx-key */
 import ProductImageUpload from "@/components/admin-view/image-upload";
 import AdminProductTile from "@/components/admin-view/product-tile";

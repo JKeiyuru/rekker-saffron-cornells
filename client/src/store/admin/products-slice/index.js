@@ -1,3 +1,4 @@
+//src/store/admin/product-slice/index.js
 import { createAsyncThunk, createSlice } from "@reduxjs/toolkit";
 import axios from "axios";
 
@@ -54,9 +55,9 @@ export const editProduct = createAsyncThunk(
 export const deleteProduct = createAsyncThunk(
   "/products/deleteProduct",
   async (id) => {
-    const result = await axios.delete(
-      `https://nemmoh-ecommerce-server.onrender.com/admin/products/delete/${id}`
-    );
+   const result = await axios.delete(
+  `https://nemmoh-ecommerce-server.onrender.com/api/admin/products/delete/${id}`
+);
 
     return result?.data;
   }
