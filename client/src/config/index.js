@@ -75,6 +75,7 @@ export const addProductFormElements = [
     name: "brand",
     componentType: "select",
     options: [
+      { id: "none", label: "None" },
       { id: "nike", label: "Nike" },
       { id: "adidas", label: "Adidas" },
       { id: "puma", label: "Puma" },
@@ -199,6 +200,7 @@ export const categoryOptionsMap = {
 };
 
 export const brandOptionsMap = {
+  none: "None",
   nike: "Nike",
   adidas: "Adidas",
   puma: "Puma",
