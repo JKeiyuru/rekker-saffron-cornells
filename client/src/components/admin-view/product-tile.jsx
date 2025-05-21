@@ -1,3 +1,4 @@
+/* eslint-disable react/prop-types */
 import { Button } from "../ui/button";
 import { Card, CardContent, CardFooter } from "../ui/card";
 
@@ -24,12 +25,12 @@ function AdminProductTile({
             <span
               className={`${
                 product?.salePrice > 0 ? "line-through" : ""
-              } text-lg font-semibold text-primary`}
+              } text-lg font-semibold text-muted-foreground`}
             >
-              ${product?.price}
+              KES{product?.price}
             </span>
             {product?.salePrice > 0 ? (
-              <span className="text-lg font-bold">${product?.salePrice}</span>
+              <span className="text-lg font-bold">KES{product?.salePrice}</span>
             ) : null}
           </div>
         </CardContent>
