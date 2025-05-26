@@ -1,5 +1,5 @@
 /* eslint-disable no-unused-vars */
-import { HousePlug, LogOut, Menu, ShoppingCart, UserCog } from "lucide-react";
+import { HousePlug, LogOut, Menu, ShoppingCart, UserCog, Heart, HeartOff } from "lucide-react";
 import logo from "../../assets/Tempara1.5.jpg";
 import {
   Link,
@@ -25,6 +25,7 @@ import UserCartWrapper from "./cart-wrapper";
 import { useEffect, useState } from "react";
 import { fetchCartItems } from "@/store/shop/cart-slice";
 import { Label } from "../ui/label";
+import WishlistSheet from "./wishlist-sheet";
 
 function MenuItems() {
   const navigate = useNavigate();
@@ -72,7 +73,9 @@ function MenuItems() {
 function HeaderRightContent() {
   const { user } = useSelector((state) => state.auth);
   const { cartItems } = useSelector((state) => state.shopCart);
+  const wishlistItems = useSelector((state) => state.shopWishlist.items || []);
   const [openCartSheet, setOpenCartSheet] = useState(false);
+  const [openWishlistSheet, setOpenWishlistSheet] = useState(false);
   const navigate = useNavigate();
   const dispatch = useDispatch();
 
@@ -86,6 +89,7 @@ function HeaderRightContent() {
 
   return (
     <div className="flex lg:items-center lg:flex-row flex-col gap-4">
+      {/* Cart */}
       <Sheet open={openCartSheet} onOpenChange={() => setOpenCartSheet(false)}>
         <Button
           onClick={() => setOpenCartSheet(true)}
@@ -102,13 +106,29 @@ function HeaderRightContent() {
         <UserCartWrapper
           setOpenCartSheet={setOpenCartSheet}
           cartItems={
-            cartItems && cartItems.items && cartItems.items.length > 0
-              ? cartItems.items
-              : []
+            cartItems?.items?.length > 0 ? cartItems.items : []
           }
         />
       </Sheet>
 
+      {/* Wishlist */}
+      <Sheet open={openWishlistSheet} onOpenChange={setOpenWishlistSheet}>
+        <Button
+          onClick={() => setOpenWishlistSheet(true)}
+          variant="outline"
+          size="icon"
+          className="relative"
+        >
+          <HeartOff className="w-6 h-6 text-red-500" />
+          <span className="absolute top-[-5px] right-[2px] font-bold text-sm">
+            {wishlistItems?.length || 0}
+          </span>
+          <span className="sr-only">User wishlist</span>
+        </Button>
+        <WishlistSheet setOpenWishlistSheet={setOpenWishlistSheet} />
+      </Sheet>
+
+      {/* Account */}
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <Avatar className="bg-black hover:cursor-pointer">
@@ -134,6 +154,7 @@ function HeaderRightContent() {
     </div>
   );
 }
+
 
 function ContactInfo() {
   return (
