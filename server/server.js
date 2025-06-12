@@ -7,7 +7,7 @@ const path = require("path");
 
 // Firebase Admin Initialization
 const admin = require("firebase-admin");
-const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT); // Ensure this file exists
+const serviceAccount = require("./serviceAccountKey.json");
 
 admin.initializeApp({
   credential: admin.credential.cert(serviceAccount),
@@ -68,18 +68,18 @@ app.use(cookieParser());
 app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: true }));
 
-// Rate Limiting (Optional but recommended)
+// Rate Limiting
 const rateLimit = require("express-rate-limit");
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 200, // limit each IP to 200 requests per windowMs
+  max: 200,
 });
 app.use(limiter);
 
-// Static Files (if needed)
+// Static Files
 app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 
-// Routes
+// API Routes
 app.use("/api/auth", authRouter);
 app.use("/api/admin/products", adminProductsRouter);
 app.use("/api/admin/orders", adminOrderRouter);
@@ -102,6 +102,7 @@ app.use((err, req, res, next) => {
   res.status(500).json({ success: false, message: "Internal Server Error" });
 });
 
-app.listen(PORT, () => 
+// Start Server
+app.listen(PORT, () =>
   console.log(`Server running on port ${PORT} in ${process.env.NODE_ENV || "development"} mode`)
 );
