@@ -5,14 +5,37 @@ const cookieParser = require("cookie-parser");
 const cors = require("cors");
 const path = require("path");
 
-// Firebase Admin Initialization
+// Firebase Admin Initialization using Environment Variables
 const admin = require("firebase-admin");
-const serviceAccount = require("./serviceAccountKey.json");
 
-admin.initializeApp({
-  credential: admin.credential.cert(serviceAccount),
-  databaseURL: `https://${serviceAccount.project_id}.firebaseio.com`,
-});
+// Initialize Firebase Admin (only if not already initialized)
+if (!admin.apps.length) {
+  // Check if we have Firebase environment variables
+  const firebaseConfig = {
+    projectId: process.env.FIREBASE_PROJECT_ID,
+    privateKey: process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, "\n"), // Fix newlines
+    clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
+  };
+
+  console.log("Firebase Config Check:", {
+    hasProjectId: !!firebaseConfig.projectId,
+    hasPrivateKey: !!firebaseConfig.privateKey,
+    hasClientEmail: !!firebaseConfig.clientEmail,
+    projectId: firebaseConfig.projectId // This will help debug
+  });
+
+  // Only initialize if we have the required environment variables
+  if (firebaseConfig.projectId && firebaseConfig.privateKey && firebaseConfig.clientEmail) {
+    admin.initializeApp({
+      credential: admin.credential.cert(firebaseConfig),
+      databaseURL: `https://${firebaseConfig.projectId}.firebaseio.com`,
+    });
+    console.log("Firebase Admin initialized successfully");
+  } else {
+    console.warn("Firebase environment variables not found. Skipping Firebase initialization.");
+    console.warn("Make sure you have FIREBASE_PROJECT_ID, FIREBASE_PRIVATE_KEY, and FIREBASE_CLIENT_EMAIL in your .env file");
+  }
+}
 
 // Routes
 const authRouter = require("./routes/auth/auth-routes");
