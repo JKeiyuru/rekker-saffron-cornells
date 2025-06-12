@@ -1,5 +1,5 @@
 /* eslint-disable no-unused-vars */
-import { HousePlug, LogOut, Menu, ShoppingCart, UserCog, Heart, HeartOff } from "lucide-react";
+import { HousePlug, LogOut, Menu, ShoppingCart, UserCog, Heart, HeartOff, Phone, MapPin, Clock, Truck } from "lucide-react";
 import logo from "../../assets/Tempara1.5.jpg";
 import {
   Link,
@@ -54,7 +54,7 @@ function MenuItems() {
 
   return (
     <div className="flex flex-col gap-2">
-      <nav className="flex flex-col mb-3 lg:mb-0 lg:items-center gap-6 lg:flex-row">
+      <nav className="flex flex-col mb-3 lg:mb-0 lg:items-center gap-6 lg:flex-row pt-8 lg:pt-6">
         {shoppingViewHeaderMenuItems.map((menuItem) => (
           <Label
             onClick={() => handleNavigate(menuItem)}
@@ -155,21 +155,35 @@ function HeaderRightContent() {
   );
 }
 
-
 function ContactInfo() {
   return (
-    <div className="hidden lg:flex flex-row gap-6 mt-1 text-xs">
-      <div className="flex items-center text-emerald-700">
-        <span className="font-medium">Phone:</span>
-        <span className="ml-1">0736601307</span>
-      </div>
-      <div className="flex items-center text-amber-700">
-        <span className="font-medium">Location:</span>
-        <span className="ml-1">Hirson Plaza 1st floor Room 120, Nairobi</span>
-      </div>
-      <div className="flex items-center text-orange-700">
-        <span className="font-medium">Working Hours:</span>
-        <span className="ml-1">6:30 AM - 6:00 PM</span>
+    <div className="hidden lg:block mt-2">
+      <div className="bg-gradient-to-r from-red-900 to-black rounded-lg px-4 py-3 shadow-md">
+        <div className="grid grid-cols-1 xl:grid-cols-4 gap-3 text-xs">
+          <div className="flex items-center text-white">
+            <Phone className="h-3 w-3 mr-2 text-red-400" />
+            <span className="font-semibold text-red-300">Phone:</span>
+            <span className="ml-1 font-medium">0736601307</span>
+          </div>
+          
+          <div className="flex items-center text-white">
+            <MapPin className="h-3 w-3 mr-2 text-red-400" />
+            <span className="font-semibold text-red-300">Location:</span>
+            <span className="ml-1 font-medium">Magic Business Center, Nairobi</span>
+          </div>
+          
+          <div className="flex items-center text-white">
+            <Clock className="h-3 w-3 mr-2 text-red-400" />
+            <span className="font-semibold text-red-300">Hours:</span>
+            <span className="ml-1 font-medium">6:30 AM - 6:00 PM</span>
+          </div>
+          
+          <div className="flex items-center text-white">
+            <Truck className="h-3 w-3 mr-2 text-red-400" />
+            <span className="font-semibold text-red-300">Express:</span>
+            <span className="ml-1 font-medium">Call for expedited delivery (extra cost)</span>
+          </div>
+        </div>
       </div>
     </div>
   );

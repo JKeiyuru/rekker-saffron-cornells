@@ -1,3 +1,4 @@
+// server/controllers/admin/products-controller.js
 const { imageUploadUtil } = require("../../helpers/cloudinary");
 const Product = require("../../models/Product");
 
@@ -13,7 +14,7 @@ const handleImageUpload = async (req, res) => {
       result,
     });
   } catch (error) {
-    console.log(error);
+    console.error("Image upload error:", error);
     res.json({
       success: false,
       message: "Error occurred during image upload",
@@ -21,41 +22,11 @@ const handleImageUpload = async (req, res) => {
   }
 };
 
-// Add a new product
+//Add a new product
 const addProduct = async (req, res) => {
   try {
-    console.log("==========================");
     console.log("=== ADD PRODUCT REQUEST ===");
-    console.log("Full request body:", JSON.stringify(req.body, null, 2));
-    console.log("==========================");
-
-    // In products-controller.js addProduct function
-console.log("Raw variations received:", req.body.variations);
-console.log("Type of variations:", typeof req.body.variations);
-console.log("Parsed variations:", parsedVariations);
-
-    let parsedVariations = [];
-    if (typeof req.body.variations === "string") {
-      try {
-        parsedVariations = JSON.parse(req.body.variations);
-      } catch (err) {
-        console.error("Failed to parse variations JSON string:", err);
-        return res.status(400).json({
-          success: false,
-          message: "Invalid variations format. Must be a JSON array.",
-        });
-      }
-    } else {
-      parsedVariations = req.body.variations || [];
-    }
-
-    // In addProduct controller, add this validation:
-if (!productData.image && (!parsedVariations || parsedVariations.length === 0)) {
-  return res.status(400).json({
-    success: false,
-    message: "Product must have either a main image or at least one variation",
-  });
-}
+    console.log("Request body:", JSON.stringify(req.body, null, 2));
 
     const {
       image,
@@ -66,69 +37,100 @@ if (!productData.image && (!parsedVariations || parsedVariations.length === 0)) 
       salePrice,
       totalStock,
       averageReview,
+      variations
     } = req.body;
 
-    if (!title || !category || !price || !totalStock) {
+    // Validate required fields
+    if (!title || !category || price === undefined || totalStock === undefined) {
       return res.status(400).json({
         success: false,
         message: "Missing required fields: title, category, price, and totalStock are required",
       });
     }
 
-    // Validate each variation
-    for (let i = 0; i < parsedVariations.length; i++) {
-      const variation = parsedVariations[i];
-      if (!variation.image || !variation.label) {
+    // Initialize parsedVariations as an empty array at the beginning
+    let parsedVariations = [];
+    
+    // Parse variations if it exists
+    if (variations) {
+      try {
+        // Handle both stringified JSON and direct array
+        if (typeof variations === 'string') {
+          parsedVariations = JSON.parse(variations);
+        } else if (Array.isArray(variations)) {
+          parsedVariations = variations;
+        } else {
+          // If variations is not a string or array, set to empty array
+          parsedVariations = [];
+        }
+        
+        // Validate variations structure if we have any
+        if (Array.isArray(parsedVariations) && parsedVariations.length > 0) {
+          for (let i = 0; i < parsedVariations.length; i++) {
+            const variation = parsedVariations[i];
+            if (!variation.image || !variation.label) {
+              return res.status(400).json({
+                success: false,
+                message: `Variation ${i + 1} is missing image or label`,
+              });
+            }
+          }
+        }
+      } catch (err) {
+        console.error("Failed to parse variations:", err);
         return res.status(400).json({
           success: false,
-          message: `Variation ${i + 1} is missing image or label`,
+          message: "Invalid variations format. Must be a valid JSON array.",
         });
       }
     }
 
+    // Validate that product has either main image or variations
+    if (!image && (!parsedVariations || parsedVariations.length === 0)) {
+      return res.status(400).json({
+        success: false,
+        message: "Product must have either a main image or at least one variation",
+      });
+    }
+
     const productData = {
       image: image || null,
-      title,
-      description: description || "",
-      category,
+      title: title.trim(),
+      description: description ? description.trim() : "",
+      category: category.trim(),
       price: Number(price),
       salePrice: salePrice ? Number(salePrice) : 0,
       totalStock: Number(totalStock),
       averageReview: averageReview ? Number(averageReview) : 0,
-      variations: parsedVariations,
+      variations: parsedVariations || []
     };
 
+    console.log("Creating product with data:", {
+      ...productData,
+      variations: productData.variations.map(v => ({
+        label: v.label,
+        hasImage: !!v.image
+      }))
+    });
 
+    const newProduct = new Product(productData);
+    const savedProduct = await newProduct.save();
 
-   // Right before saving, add:
-console.log("Final product data before save:", {
-  ...productData,
-  variations: productData.variations.map(v => ({
-    label: v.label,
-    image: v.image?.substring(0, 25) + "..."
-  }))
-});
-
-const newlyCreatedProduct = new Product(productData);
-await newlyCreatedProduct.save();
-
-console.log("Saved product:", {
-  _id: newlyCreatedProduct._id,
-  variations: newlyCreatedProduct.variations
-});
-
-    console.log("Product created successfully:", newlyCreatedProduct);
+    console.log("Product saved successfully:", {
+      id: savedProduct._id,
+      variationsCount: savedProduct.variations.length
+    });
 
     res.status(201).json({
       success: true,
-      data: newlyCreatedProduct,
+      data: savedProduct,
     });
-  } catch (e) {
-    console.error("Add Product Error:", e);
+  } catch (error) {
+    console.error("Add Product Error:", error);
     res.status(500).json({
       success: false,
       message: "Error occurred while adding product",
-      error: e.message,
+      error: error.message,
     });
   }
 };
@@ -136,13 +138,13 @@ console.log("Saved product:", {
 // Fetch all products
 const fetchAllProducts = async (req, res) => {
   try {
-    const listOfProducts = await Product.find({});
+    const products = await Product.find({}).sort({ createdAt: -1 });
     res.status(200).json({
       success: true,
-      data: listOfProducts,
+      data: products,
     });
-  } catch (e) {
-    console.log(e);
+  } catch (error) {
+    console.error("Fetch products error:", error);
     res.status(500).json({
       success: false,
       message: "Error occurred while fetching products",
@@ -157,22 +159,7 @@ const editProduct = async (req, res) => {
 
     console.log("=== EDIT PRODUCT REQUEST ===");
     console.log("Product ID:", id);
-    console.log("Full request body:", JSON.stringify(req.body, null, 2));
-    console.log("==========================");
-
-    let parsedVariations = [];
-    if (typeof req.body.variations === "string") {
-      try {
-        parsedVariations = JSON.parse(req.body.variations);
-      } catch (err) {
-        return res.status(400).json({
-          success: false,
-          message: "Failed to parse variations. Must be valid JSON array.",
-        });
-      }
-    } else {
-      parsedVariations = req.body.variations || [];
-    }
+    console.log("Request body:", JSON.stringify(req.body, null, 2));
 
     const {
       image,
@@ -183,8 +170,10 @@ const editProduct = async (req, res) => {
       salePrice,
       totalStock,
       averageReview,
+      variations
     } = req.body;
 
+    // Validate required fields
     if (!title || !category || price === undefined || totalStock === undefined) {
       return res.status(400).json({
         success: false,
@@ -192,32 +181,65 @@ const editProduct = async (req, res) => {
       });
     }
 
-    // Validate each variation
-    for (let i = 0; i < parsedVariations.length; i++) {
-      const variation = parsedVariations[i];
-      if (!variation.image || !variation.label) {
+    // Initialize parsedVariations as an empty array at the beginning
+    let parsedVariations = [];
+    
+    // Parse variations if it exists
+    if (variations) {
+      try {
+        if (typeof variations === "string") {
+          parsedVariations = JSON.parse(variations);
+        } else if (Array.isArray(variations)) {
+          parsedVariations = variations;
+        } else {
+          // If variations is not a string or array, set to empty array
+          parsedVariations = [];
+        }
+      } catch (err) {
+        console.error("Failed to parse variations:", err);
         return res.status(400).json({
           success: false,
-          message: `Variation ${i + 1} is missing image or label`,
+          message: "Invalid variations format. Must be a valid JSON array.",
         });
       }
     }
 
+    // Validate variations structure
+    if (parsedVariations && parsedVariations.length > 0) {
+      for (let i = 0; i < parsedVariations.length; i++) {
+        const variation = parsedVariations[i];
+        if (!variation.image || !variation.label) {
+          return res.status(400).json({
+            success: false,
+            message: `Variation ${i + 1} is missing image or label`,
+          });
+        }
+      }
+    }
+
+    // Validate that product has either main image or variations
+    if (!image && (!parsedVariations || parsedVariations.length === 0)) {
+      return res.status(400).json({
+        success: false,
+        message: "Product must have either a main image or at least one variation",
+      });
+    }
+
     const updateData = {
       image: image || null,
-      title,
-      description: description || "",
-      category,
-      price: Number(price) || 0,
+      title: title.trim(),
+      description: description ? description.trim() : "",
+      category: category.trim(),
+      price: Number(price),
       salePrice: salePrice ? Number(salePrice) : 0,
-      totalStock: Number(totalStock) || 0,
+      totalStock: Number(totalStock),
       averageReview: averageReview ? Number(averageReview) : 0,
-      variations: parsedVariations,
+      variations: parsedVariations || []
     };
 
     const updatedProduct = await Product.findByIdAndUpdate(
       id,
-      { $set: updateData },
+      updateData,
       { new: true, runValidators: true }
     );
 
@@ -228,18 +250,21 @@ const editProduct = async (req, res) => {
       });
     }
 
-    console.log("Product updated successfully:", updatedProduct);
+    console.log("Product updated successfully:", {
+      id: updatedProduct._id,
+      variationsCount: updatedProduct.variations.length
+    });
 
     res.status(200).json({
       success: true,
       data: updatedProduct,
     });
-  } catch (e) {
-    console.error("Edit Product Error:", e);
+  } catch (error) {
+    console.error("Edit Product Error:", error);
     res.status(500).json({
       success: false,
       message: "Error occurred while editing product",
-      error: e.message,
+      error: error.message,
     });
   }
 };
@@ -261,8 +286,8 @@ const deleteProduct = async (req, res) => {
       success: true,
       message: "Product deleted successfully",
     });
-  } catch (e) {
-    console.log(e);
+  } catch (error) {
+    console.error("Delete product error:", error);
     res.status(500).json({
       success: false,
       message: "Error occurred while deleting product",

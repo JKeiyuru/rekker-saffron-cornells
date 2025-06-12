@@ -1,3 +1,4 @@
+//client/src/components/auth/layout.jsx
 import { Outlet } from "react-router-dom";
 
 function AuthLayout() {

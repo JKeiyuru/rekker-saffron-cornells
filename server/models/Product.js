@@ -13,7 +13,9 @@ const VariationSchema = new mongoose.Schema({
     trim: true,
     maxlength: [100, "Variation label cannot exceed 100 characters"]
   }
-}, { _id: true });
+}, { 
+  _id: true
+});
 
 const ProductSchema = new mongoose.Schema(
   {
@@ -21,7 +23,7 @@ const ProductSchema = new mongoose.Schema(
       type: String, 
       trim: true,
       default: null
-    }, // legacy support (optional)
+    },
     title: {
       type: String,
       required: [true, "Product title is required"],
@@ -49,7 +51,6 @@ const ProductSchema = new mongoose.Schema(
       min: [0, "Sale price cannot be negative"],
       validate: {
         validator: function(value) {
-          // If salePrice is set, it should be less than or equal to the regular price
           return !value || value <= this.price;
         },
         message: "Sale price should be less than or equal to regular price"
@@ -67,43 +68,45 @@ const ProductSchema = new mongoose.Schema(
       max: [5, "Average review cannot exceed 5"]
     },
     variations: {
-  type: [VariationSchema],
-  default: [],
-  validate: {
-    validator: function(variations) {
-      // Remove this validation completely or modify it
-      // return this.image || (variations && variations.length > 0);
-      
-      // NEW: Always allow variations array (validation happens at controller level)
-      return true;
-    },
-    message: "Product must have either a main image or at least one variation"
-  }
-}
+      type: [VariationSchema],
+      default: []
+    }
   },
   { 
     timestamps: true,
-    toJSON: { virtuals: true },
-    toObject: { virtuals: true }
+    toJSON: { 
+      transform: function(doc, ret) {
+        delete ret.__v;
+        return ret;
+      }
+    }
   }
 );
 
-// Virtual to check if product has variations
-ProductSchema.virtual('hasVariations').get(function() {
-  return this.variations && this.variations.length > 0;
+// Custom validation: Product must have either main image or variations
+ProductSchema.pre('validate', function(next) {
+  // Check if both image and variations are empty/null
+  const hasMainImage = this.image && this.image.trim().length > 0;
+  const hasVariations = this.variations && Array.isArray(this.variations) && this.variations.length > 0;
+  
+  if (!hasMainImage && !hasVariations) {
+    return next(new Error('Product must have either a main image or at least one variation'));
+  }
+  next();
 });
 
-// Virtual to get the display image (main image or first variation image)
+// Virtual for display image
 ProductSchema.virtual('displayImage').get(function() {
-  if (this.image) return this.image;
-  if (this.variations && this.variations.length > 0) return this.variations[0].image;
+  if (this.image && this.image.trim().length > 0) return this.image;
+  if (this.variations && this.variations.length > 0 && this.variations[0].image) {
+    return this.variations[0].image;
+  }
   return null;
 });
 
-// Index for better performance
+// Indexes
 ProductSchema.index({ category: 1, title: 1 });
 ProductSchema.index({ price: 1 });
-ProductSchema.index({ 'variations.label': 1 }); // Add this line
 ProductSchema.index({ createdAt: -1 });
 
 module.exports = mongoose.model("Product", ProductSchema);

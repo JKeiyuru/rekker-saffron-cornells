@@ -152,14 +152,13 @@ const initiateMpesaPayment = async (req, res) => {
   const { phone, amount, callbackUrl } = req.body;
 
   try {
-    await createToken();
-    const stkResponse = await stkPush(phone, amount, callbackUrl);
+    const token = await createToken(); // ✅ get token
+    const stkResponse = await stkPush(token, phone, amount, callbackUrl); // ✅ pass token & data
 
-    // Save the order details in the database
     const newOrder = new Order({
-      userId: req.body.userId, // Assuming userId is passed in the request
-      cartItems: req.body.cartItems, // Assuming cartItems is passed in the request
-      addressInfo: req.body.addressInfo, // Assuming addressInfo is passed in the request
+      userId: req.body.userId,
+      cartItems: req.body.cartItems,
+      addressInfo: req.body.addressInfo,
       paymentMethod: "mpesa",
       paymentStatus: "pending",
       totalAmount: amount,
@@ -169,12 +168,17 @@ const initiateMpesaPayment = async (req, res) => {
 
     await newOrder.save();
 
-    res.status(200).json({ success: true, data: stkResponse, orderId: newOrder._id });
+    res.status(200).json({
+      success: true,
+      data: stkResponse,
+      orderId: newOrder._id,
+    });
   } catch (error) {
-    console.error("M-Pesa payment error:", error);
+    console.error("M-Pesa payment error:", error.response?.data || error.message);
     res.status(500).json({ success: false, message: "M-Pesa payment failed" });
   }
 };
+
 
 const getAllOrdersByUser = async (req, res) => {
   try {

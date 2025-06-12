@@ -32,6 +32,7 @@ import { useToast } from "@/components/ui/use-toast";
 import ProductDetailsDialog from "@/components/shopping-view/product-details";
 import { getFeatureImages } from "@/store/common-slice";
 import { fetchWishlist } from "@/store/shop/wishlist-slice";
+import TermsAndConditionsSheet from "@/components/shopping-view/terms-conditions-sheet";
 
 const categoriesWithIcon = [
   { id: "home", label: "Home", icon: HomeIcon },
@@ -184,7 +185,7 @@ function ShoppingHome() {
         <div className="container mx-auto px-4 text-center">
           <h2 className="text-3xl font-extrabold mb-4">A Family-first Toy Haven</h2>
           <p className="text-muted-foreground max-w-3xl mx-auto mb-12">
-            Born from a mother of five’s passion for child-driven development, our family-run business is committed to rediscovering joy beyond screens — encouraging creativity, play, and family bonding through classic and new-age games.
+            Born from a mother of five's passion for child-driven development, our family-run business is committed to rediscovering joy beyond screens — encouraging creativity, play, and family bonding through classic and new-age games.
           </p>
           <div className="flex flex-col md:flex-row justify-center items-center gap-8">
             <div className="rounded-full bg-gray-100 shadow p-6 w-[250px] h-[250px] flex items-center justify-center text-center">
@@ -230,6 +231,25 @@ function ShoppingHome() {
         setOpen={setOpenDetailsDialog}
         productDetails={productDetails}
       />
+
+      {/* Footer with Terms and Conditions */}
+      <footer className="bg-gray-100 py-8 mt-12">
+        <div className="container mx-auto px-4">
+          <div className="flex flex-col md:flex-row justify-between items-center">
+            <div className="mb-4 md:mb-0">
+              <p className="text-sm text-gray-600">
+                © 2025 Tempara. All rights reserved.
+              </p>
+            </div>
+            <div className="flex items-center gap-4">
+              <TermsAndConditionsSheet />
+              <p className="text-xs text-gray-500 max-w-md text-center">
+                By using our website, you agree to our terms and conditions
+              </p>
+            </div>
+          </div>
+        </div>
+      </footer>
     </div>
   );
 }

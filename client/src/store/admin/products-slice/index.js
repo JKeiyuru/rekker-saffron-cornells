@@ -5,16 +5,20 @@ import axios from "axios";
 const initialState = {
   isLoading: false,
   productList: [],
-  error: null
+  error: null,
+  success: false
 };
 
 export const addNewProduct = createAsyncThunk(
   "/products/addnewproduct",
   async (formData, { rejectWithValue }) => {
     try {
-      console.log("Sending product data:", {
+      console.log("Redux: Sending product data:", {
         ...formData,
-        variations: formData.variations?.map(v => v.label) || []
+        variations: formData.variations?.map(v => ({
+          image: v.image ? v.image.substring(0, 30) + "..." : "No image",
+          label: v.label
+        })) || []
       });
 
       const response = await axios.post(
@@ -27,10 +31,11 @@ export const addNewProduct = createAsyncThunk(
         }
       );
 
+      console.log("Redux: Add product response:", response.data);
       return response.data;
     } catch (error) {
-      console.error("Add product error:", error.response?.data || error.message);
-      return rejectWithValue(error.response?.data || error.message);
+      console.error("Redux: Add product error:", error.response?.data || error.message);
+      return rejectWithValue(error.response?.data || { message: error.message });
     }
   }
 );
@@ -42,9 +47,20 @@ export const fetchAllProducts = createAsyncThunk(
       const response = await axios.get(
         "https://nemmoh-ecommerce-server.onrender.com/api/admin/products/get"
       );
+      
+      console.log("Redux: Fetched products:", {
+        count: response.data?.data?.length || 0,
+        products: response.data?.data?.map(p => ({
+          id: p._id,
+          title: p.title,
+          variationsCount: p.variations?.length || 0
+        })) || []
+      });
+      
       return response.data;
     } catch (error) {
-      return rejectWithValue(error.response?.data || error.message);
+      console.error("Redux: Fetch products error:", error.response?.data || error.message);
+      return rejectWithValue(error.response?.data || { message: error.message });
     }
   }
 );
@@ -53,6 +69,18 @@ export const editProduct = createAsyncThunk(
   "/products/editProduct",
   async ({ id, formData }, { rejectWithValue }) => {
     try {
+      console.log("Redux: Editing product:", {
+        id,
+        formData: {
+          ...formData,
+          variations: formData.variations?.map(v => ({
+            image: v.image ? v.image.substring(0, 30) + "..." : "No image",
+            label: v.label,
+            hasId: !!v._id
+          })) || []
+        }
+      });
+
       const response = await axios.put(
         `https://nemmoh-ecommerce-server.onrender.com/api/admin/products/edit/${id}`,
         formData,
@@ -62,9 +90,12 @@ export const editProduct = createAsyncThunk(
           },
         }
       );
+
+      console.log("Redux: Edit product response:", response.data);
       return response.data;
     } catch (error) {
-      return rejectWithValue(error.response?.data || error.message);
+      console.error("Redux: Edit product error:", error.response?.data || error.message);
+      return rejectWithValue(error.response?.data || { message: error.message });
     }
   }
 );
@@ -73,12 +104,17 @@ export const deleteProduct = createAsyncThunk(
   "/products/deleteProduct",
   async (id, { rejectWithValue }) => {
     try {
+      console.log("Redux: Deleting product with ID:", id);
+      
       const response = await axios.delete(
         `https://nemmoh-ecommerce-server.onrender.com/api/admin/products/delete/${id}`
       );
-      return response.data;
+
+      console.log("Redux: Delete product response:", response.data);
+      return { ...response.data, deletedId: id };
     } catch (error) {
-      return rejectWithValue(error.response?.data || error.message);
+      console.error("Redux: Delete product error:", error.response?.data || error.message);
+      return rejectWithValue(error.response?.data || { message: error.message });
     }
   }
 );
@@ -86,9 +122,22 @@ export const deleteProduct = createAsyncThunk(
 const AdminProductsSlice = createSlice({
   name: "adminProducts",
   initialState,
-  reducers: {},
+  reducers: {
+    clearError: (state) => {
+      state.error = null;
+    },
+    clearSuccess: (state) => {
+      state.success = false;
+    },
+    resetProductState: (state) => {
+      state.isLoading = false;
+      state.error = null;
+      state.success = false;
+    }
+  },
   extraReducers: (builder) => {
     builder
+      // Fetch All Products
       .addCase(fetchAllProducts.pending, (state) => {
         state.isLoading = true;
         state.error = null;
@@ -96,46 +145,78 @@ const AdminProductsSlice = createSlice({
       .addCase(fetchAllProducts.fulfilled, (state, action) => {
         state.isLoading = false;
         state.productList = action.payload.data || [];
+        state.error = null;
       })
       .addCase(fetchAllProducts.rejected, (state, action) => {
         state.isLoading = false;
         state.productList = [];
-        state.error = action.payload;
+        state.error = action.payload?.message || "Failed to fetch products";
       })
+      
+      // Add New Product
       .addCase(addNewProduct.pending, (state) => {
         state.isLoading = true;
         state.error = null;
+        state.success = false;
       })
-      .addCase(addNewProduct.fulfilled, (state) => {
+      .addCase(addNewProduct.fulfilled, (state, action) => {
         state.isLoading = false;
+        state.success = true;
+        state.error = null;
+        // Optionally add the new product to the list
+        if (action.payload.data) {
+          state.productList.unshift(action.payload.data);
+        }
       })
       .addCase(addNewProduct.rejected, (state, action) => {
         state.isLoading = false;
-        state.error = action.payload;
+        state.success = false;
+        state.error = action.payload?.message || "Failed to add product";
       })
+      
+      // Edit Product
       .addCase(editProduct.pending, (state) => {
         state.isLoading = true;
         state.error = null;
+        state.success = false;
       })
-      .addCase(editProduct.fulfilled, (state) => {
+      .addCase(editProduct.fulfilled, (state, action) => {
         state.isLoading = false;
+        state.success = true;
+        state.error = null;
+        // Update the product in the list
+        if (action.payload.data) {
+          const index = state.productList.findIndex(p => p._id === action.payload.data._id);
+          if (index !== -1) {
+            state.productList[index] = action.payload.data;
+          }
+        }
       })
       .addCase(editProduct.rejected, (state, action) => {
         state.isLoading = false;
-        state.error = action.payload;
+        state.success = false;
+        state.error = action.payload?.message || "Failed to update product";
       })
+      
+      // Delete Product
       .addCase(deleteProduct.pending, (state) => {
         state.isLoading = true;
         state.error = null;
       })
-      .addCase(deleteProduct.fulfilled, (state) => {
+      .addCase(deleteProduct.fulfilled, (state, action) => {
         state.isLoading = false;
+        state.error = null;
+        // Remove the product from the list
+        if (action.payload.deletedId) {
+          state.productList = state.productList.filter(p => p._id !== action.payload.deletedId);
+        }
       })
       .addCase(deleteProduct.rejected, (state, action) => {
         state.isLoading = false;
-        state.error = action.payload;
+        state.error = action.payload?.message || "Failed to delete product";
       });
   },
 });
 
+export const { clearError, clearSuccess, resetProductState } = AdminProductsSlice.actions;
 export default AdminProductsSlice.reducer;

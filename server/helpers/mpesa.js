@@ -1,74 +1,56 @@
-// helpers/mpesa.js
 const axios = require("axios");
 
-let token; // Store the access token globally
+// Load M-Pesa credentials from environment variables
+const consumerKey = process.env.MPESA_CONSUMER_KEY;
+const consumerSecret = process.env.MPESA_CONSUMER_SECRET;
+const passkey = process.env.MPESA_PASSKEY;
+const shortCode = process.env.MPESA_SHORTCODE || "174379"; // fallback to sandbox default
 
 const createToken = async () => {
-  const secret = process.env.MPESA_CONSUMER_SECRET;
-  const consumer = process.env.MPESA_CONSUMER_KEY;
-  const auth = Buffer.from(`${consumer}:${secret}`).toString("base64");
+  const auth = Buffer.from(`${consumerKey}:${consumerSecret}`).toString("base64");
 
-  try {
-    const response = await axios.get(
-      "https://sandbox.safaricom.co.ke/oauth/v1/generate?grant_type=client_credentials",
-      {
-        headers: {
-          authorization: `Basic ${auth}`,
-        },
-      }
-    );
-    token = response.data.access_token;
-    return token;
-  } catch (error) {
-    console.error("Error generating access token:", error);
-    throw error;
-  }
+  const response = await axios.get(
+    "https://sandbox.safaricom.co.ke/oauth/v1/generate?grant_type=client_credentials",
+    {
+      headers: { Authorization: `Basic ${auth}` },
+    }
+  );
+  return response.data.access_token;
 };
 
-const stkPush = async (phone, amount, callbackUrl) => {
-  const shortCode = process.env.MPESA_SHORTCODE;
-  const passkey = process.env.MPESA_PASSKEY;
+const stkPush = async (token, phone, amount, callbackUrl) => {
+  const url = "https://sandbox.safaricom.co.ke/mpesa/stkpush/v1/processrequest";
 
   const date = new Date();
   const timestamp =
-    date.getFullYear() +
-    ("0" + (date.getMonth() + 1)).slice(-2) +
-    ("0" + date.getDate()).slice(-2) +
-    ("0" + date.getHours()).slice(-2) +
-    ("0" + date.getMinutes()).slice(-2) +
-    ("0" + date.getSeconds()).slice(-2);
+    date.getFullYear().toString() +
+    String(date.getMonth() + 1).padStart(2, "0") +
+    String(date.getDate()).padStart(2, "0") +
+    String(date.getHours()).padStart(2, "0") +
+    String(date.getMinutes()).padStart(2, "0") +
+    String(date.getSeconds()).padStart(2, "0");
 
   const password = Buffer.from(shortCode + passkey + timestamp).toString("base64");
 
-  const data = {
+  const payload = {
     BusinessShortCode: shortCode,
     Password: password,
     Timestamp: timestamp,
     TransactionType: "CustomerPayBillOnline",
     Amount: amount,
-    PartyA: `254${phone.substring(1)}`, // Ensure phone number starts with 254
+    PartyA: `254${phone.substring(1)}`,
     PartyB: shortCode,
     PhoneNumber: `254${phone.substring(1)}`,
     CallBackURL: callbackUrl,
-    AccountReference: "E-Commerce Payment",
-    TransactionDesc: "Payment for goods",
+    AccountReference: "Mpesa Test",
+    TransactionDesc: "Testing stk push",
   };
 
-  try {
-    const response = await axios.post(
-      "https://sandbox.safaricom.co.ke/mpesa/stkpush/v1/processrequest",
-      data,
-      {
-        headers: {
-          authorization: `Bearer ${token}`,
-        },
-      }
-    );
-    return response.data;
-  } catch (error) {
-    console.error("Error initiating STK Push:", error);
-    throw error;
-  }
+  const response = await axios.post(url, payload, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+
+  return response.data;
 };
 
 module.exports = { createToken, stkPush };
