@@ -2,7 +2,7 @@
 import CommonForm from "@/components/common/form";
 import { useToast } from "@/components/ui/use-toast";
 import { loginFormControls } from "@/config";
-import { loginUser } from "@/store/auth-slice";
+import { loginUser, setUser } from "@/store/auth-slice";
 import { useState } from "react";
 import { useDispatch } from "react-redux";
 import { Link, useNavigate } from "react-router-dom";
@@ -22,67 +22,100 @@ function AuthLogin() {
   const { toast } = useToast();
   const navigate = useNavigate();
 
+  // Helper function to handle successful login navigation
+  const handleSuccessfulLogin = (user, message = "Logged in successfully!") => {
+    toast({ title: message });
+    
+    // Update Redux state
+    dispatch(setUser(user));
+    
+    // Navigate with delay to allow state updates
+    const targetRoute = user?.role === 'admin' ? '/admin/dashboard' : '/shop/home';
+    console.log('Navigating to:', targetRoute);
+    
+    setTimeout(() => {
+      navigate(targetRoute, { replace: true });
+    }, 100);
+  };
+
   async function onSubmit(event) {
     event.preventDefault();
     setIsLoading(true);
 
     try {
-      // First, try traditional login (for existing users)
+      // Try traditional login first
       const response = await dispatch(loginUser(formData));
       
       if (response?.payload?.success) {
-        toast({
-          title: "Logged in successfully!",
-        });
-        // Navigate based on user role
-        const userRole = response.payload.user?.role;
-        navigate(userRole === 'admin' ? '/admin/dashboard' : '/shop/home');
-      } else {
-        // If traditional login fails, try Firebase auth
-        try {
-          const userCredential = await signInWithEmailAndPassword(
-            auth,
-            formData.email,
-            formData.password
-          );
-          
-          // Get Firebase ID token and send to backend
-          const idToken = await userCredential.user.getIdToken();
-          
-          const backendResponse = await fetch('/api/auth/firebase-login', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${idToken}`
-            },
-            body: JSON.stringify({
-              email: formData.email,
-              firebaseUid: userCredential.user.uid
-            })
-          });
+        handleSuccessfulLogin(response.payload.user);
+        return; // Exit early to avoid Firebase auth attempt
+      }
 
-          const backendData = await backendResponse.json();
-          
-          if (backendData.success) {
-            toast({
-              title: "Logged in successfully!",
-            });
-            navigate(backendData.user?.role === 'admin' ? '/admin/dashboard' : '/shop/home');
-          } else {
-            throw new Error(backendData.message || 'Backend authentication failed');
-          }
-          
-        } catch (firebaseError) {
-          console.error('Firebase login error:', firebaseError);
-          toast({
-            title: response?.payload?.message || "Login failed",
-            description: "Please check your credentials and try again.",
-            variant: "destructive",
-          });
+      // If traditional login fails, try Firebase authentication
+      try {
+        const userCredential = await signInWithEmailAndPassword(
+          auth,
+          formData.email,
+          formData.password
+        );
+        
+        // Get Firebase ID token and send to backend
+        const idToken = await userCredential.user.getIdToken();
+        
+        const backendResponse = await fetch('https://nemmoh-ecommerce-server.onrender.com/api/auth/firebase-login', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${idToken}`
+          },
+          body: JSON.stringify({
+            email: formData.email,
+            firebaseUid: userCredential.user.uid
+          })
+        });
+
+        // Check if response is JSON
+        const contentType = backendResponse.headers.get('content-type');
+        if (!contentType || !contentType.includes('application/json')) {
+          const textResponse = await backendResponse.text();
+          console.error('Non-JSON response:', textResponse);
+          throw new Error('Server returned non-JSON response');
         }
+
+        const backendData = await backendResponse.json();
+        
+        if (backendData.success) {
+          handleSuccessfulLogin(backendData.user);
+        } else {
+          throw new Error(backendData.message || 'Backend authentication failed');
+        }
+        
+      } catch (firebaseError) {
+        console.error('Firebase login error:', firebaseError);
+        
+        // Provide specific error messages
+        let errorMessage = "Login failed. Please check your credentials and try again.";
+        
+        if (firebaseError.code === 'auth/user-not-found') {
+          errorMessage = "No account found with this email. Please register first.";
+        } else if (firebaseError.code === 'auth/wrong-password') {
+          errorMessage = "Incorrect password. Please try again.";
+        } else if (firebaseError.code === 'auth/invalid-email') {
+          errorMessage = "Invalid email address format.";
+        } else if (firebaseError.code === 'auth/user-disabled') {
+          errorMessage = "This account has been disabled. Please contact support.";
+        } else if (firebaseError.message) {
+          errorMessage = firebaseError.message;
+        }
+
+        toast({
+          title: "Login failed",
+          description: errorMessage,
+          variant: "destructive",
+        });
       }
     } catch (error) {
-      console.error('Login error:', error);
+      console.error('General login error:', error);
       toast({
         title: "Login failed",
         description: error.message || "An unexpected error occurred",
@@ -92,6 +125,20 @@ function AuthLogin() {
       setIsLoading(false);
     }
   }
+
+  // Handle Google/Social login success
+  const handleSocialLoginSuccess = (userData) => {
+    handleSuccessfulLogin(userData.user, "Logged in successfully!");
+  };
+
+  // Handle social login error
+  const handleSocialLoginError = (error) => {
+    toast({
+      title: "Authentication failed",
+      description: error,
+      variant: "destructive"
+    });
+  };
 
   return (
     <div className="mx-auto w-full max-w-md space-y-6">
@@ -109,6 +156,7 @@ function AuthLogin() {
           </Link>
         </p>
       </div>
+      
       <CommonForm
         formControls={loginFormControls}
         buttonText={isLoading ? "Signing In..." : "Sign In"}
@@ -117,6 +165,7 @@ function AuthLogin() {
         onSubmit={onSubmit}
         disabled={isLoading}
       />
+      
       <div className="relative">
         <div className="absolute inset-0 flex items-center">
           <span className="w-full border-t" />
@@ -129,17 +178,8 @@ function AuthLogin() {
       </div>
 
       <AuthProviders 
-        onSuccess={(userData) => {
-          toast({ title: "Logged in successfully!" });
-          navigate(userData.user.role === 'admin' ? '/admin/dashboard' : '/shop/home');
-        }}
-        onError={(error) => {
-          toast({
-            title: "Authentication failed",
-            description: error,
-            variant: "destructive"
-          });
-        }}
+        onSuccess={handleSocialLoginSuccess}
+        onError={handleSocialLoginError}
       />
     </div>
   );
