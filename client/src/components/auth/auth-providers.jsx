@@ -22,27 +22,36 @@ export function AuthProviders({ onSuccess, onError }) {
       // Get Firebase ID token
       const idToken = await result.user.getIdToken();
       
-      const response = await fetch('/api/auth/social-login', {
-        method: 'POST',
-        headers: { 
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${idToken}`
-        },
-        body: JSON.stringify({
-          token: idToken,
-          uid: result.user.uid,
-          email: result.user.email,
-          name: result.user.displayName || result.user.email.split('@')[0],
-          provider: 'google'
-        })
-      });
+      // In auth-providers.jsx
+const response = await fetch('https://nemmoh-ecommerce-server.onrender.com/api/auth/social-login', {
+  method: 'POST',
+  headers: { 
+    'Content-Type': 'application/json',
+    'Authorization': `Bearer ${idToken}`
+  },
+  body: JSON.stringify({
+    token: idToken,
+    uid: result.user.uid,
+    email: result.user.email,
+    name: result.user.displayName || result.user.email.split('@')[0],
+    provider: 'google'
+  })
+});
 
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.message || 'Backend authentication failed');
-      }
-      
-      const data = await response.json();
+// Check if response is JSON before parsing
+const contentType = response.headers.get('content-type');
+if (!contentType || !contentType.includes('application/json')) {
+  const textResponse = await response.text();
+  console.error('Non-JSON response:', textResponse);
+  throw new Error('Server returned non-JSON response');
+}
+
+if (!response.ok) {
+  const errorData = await response.json();
+  throw new Error(errorData.message || 'Backend authentication failed');
+}
+
+const data = await response.json();
       onSuccess(data);
     } catch (error) {
       console.error('Google sign-in error:', error);

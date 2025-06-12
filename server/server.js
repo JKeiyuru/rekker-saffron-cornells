@@ -37,6 +37,9 @@ if (!admin.apps.length) {
   }
 }
 
+
+
+
 // Routes
 const authRouter = require("./routes/auth/auth-routes");
 const adminProductsRouter = require("./routes/admin/products-routes");
@@ -101,6 +104,15 @@ app.use(limiter);
 
 // Static Files
 app.use("/uploads", express.static(path.join(__dirname, "uploads")));
+
+
+app.use((req, res, next) => {
+  // Allow popup windows to be closed
+  res.setHeader('Cross-Origin-Opener-Policy', 'same-origin-allow-popups');
+  // Optional: Also set other CORS headers if needed
+  res.setHeader('Cross-Origin-Embedder-Policy', 'unsafe-none');
+  next();
+});
 
 // API Routes
 app.use("/api/auth", authRouter);
