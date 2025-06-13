@@ -2,9 +2,9 @@
 import CommonForm from "@/components/common/form";
 import { useToast } from "@/components/ui/use-toast";
 import { loginFormControls } from "@/config";
-import { loginUser, setUser } from "@/store/auth-slice";
+import { loginUser } from "@/store/auth-slice";
 import { useState } from "react";
-import { useDispatch } from "react-redux";
+import { useDispatch, useSelector } from "react-redux";
 import { Link, useNavigate } from "react-router-dom";
 import { signInWithEmailAndPassword } from "firebase/auth";
 import { auth } from "@/firebase";
@@ -21,21 +21,15 @@ function AuthLogin() {
   const dispatch = useDispatch();
   const { toast } = useToast();
   const navigate = useNavigate();
+  const { isAuthenticated, user } = useSelector((state) => state.auth);
 
   // Helper function to handle successful login navigation
-  const handleSuccessfulLogin = (user, message = "Logged in successfully!") => {
+  const handleSuccessfulLogin = (userData, message = "Logged in successfully!") => {
     toast({ title: message });
     
-    // Update Redux state
-    dispatch(setUser(user));
-    
-    // Navigate with delay to allow state updates
-    const targetRoute = user?.role === 'admin' ? '/admin/dashboard' : '/shop/home';
-    console.log('Navigating to:', targetRoute);
-    
-    setTimeout(() => {
-      navigate(targetRoute, { replace: true });
-    }, 100);
+    // Don't manually navigate - let the auth state change handle it
+    // The Firebase auth state listener will trigger navigation
+    console.log('Login successful for user:', userData);
   };
 
   async function onSubmit(event) {
@@ -43,55 +37,31 @@ function AuthLogin() {
     setIsLoading(true);
 
     try {
-      // Try traditional login first
-      const response = await dispatch(loginUser(formData));
+      // Try Firebase authentication first
+      const userCredential = await signInWithEmailAndPassword(
+        auth,
+        formData.email,
+        formData.password
+      );
       
-      if (response?.payload?.success) {
-        handleSuccessfulLogin(response.payload.user);
-        return; // Exit early to avoid Firebase auth attempt
-      }
-
-      // If traditional login fails, try Firebase authentication
+      console.log('Firebase login successful:', userCredential.user.email);
+      // Don't handle navigation here - the auth state listener will handle it
+      handleSuccessfulLogin({ email: userCredential.user.email });
+      
+    } catch (firebaseError) {
+      console.error('Firebase login error:', firebaseError);
+      
+      // If Firebase fails, try traditional backend login
       try {
-        const userCredential = await signInWithEmailAndPassword(
-          auth,
-          formData.email,
-          formData.password
-        );
+        const response = await dispatch(loginUser(formData));
         
-        // Get Firebase ID token and send to backend
-        const idToken = await userCredential.user.getIdToken();
-        
-        const backendResponse = await fetch('https://nemmoh-ecommerce-server.onrender.com/api/auth/firebase-login', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${idToken}`
-          },
-          body: JSON.stringify({
-            email: formData.email,
-            firebaseUid: userCredential.user.uid
-          })
-        });
-
-        // Check if response is JSON
-        const contentType = backendResponse.headers.get('content-type');
-        if (!contentType || !contentType.includes('application/json')) {
-          const textResponse = await backendResponse.text();
-          console.error('Non-JSON response:', textResponse);
-          throw new Error('Server returned non-JSON response');
-        }
-
-        const backendData = await backendResponse.json();
-        
-        if (backendData.success) {
-          handleSuccessfulLogin(backendData.user);
+        if (response?.payload?.success) {
+          handleSuccessfulLogin(response.payload.user);
         } else {
-          throw new Error(backendData.message || 'Backend authentication failed');
+          throw new Error(response?.payload?.message || 'Backend login failed');
         }
-        
-      } catch (firebaseError) {
-        console.error('Firebase login error:', firebaseError);
+      } catch (backendError) {
+        console.error('Backend login error:', backendError);
         
         // Provide specific error messages
         let errorMessage = "Login failed. Please check your credentials and try again.";
@@ -114,19 +84,12 @@ function AuthLogin() {
           variant: "destructive",
         });
       }
-    } catch (error) {
-      console.error('General login error:', error);
-      toast({
-        title: "Login failed",
-        description: error.message || "An unexpected error occurred",
-        variant: "destructive",
-      });
     } finally {
       setIsLoading(false);
     }
   }
 
-  // Handle Google/Social login success
+  // Handle Google/Social login success - simplified
   const handleSocialLoginSuccess = (userData) => {
     handleSuccessfulLogin(userData.user, "Logged in successfully!");
   };
@@ -139,6 +102,13 @@ function AuthLogin() {
       variant: "destructive"
     });
   };
+
+  // If already authenticated, don't show login form
+  if (isAuthenticated && user) {
+    const targetRoute = user.role === 'admin' ? '/admin/dashboard' : '/shop/home';
+    navigate(targetRoute, { replace: true });
+    return null;
+  }
 
   return (
     <div className="mx-auto w-full max-w-md space-y-6">

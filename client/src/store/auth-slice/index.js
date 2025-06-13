@@ -6,9 +6,10 @@ import { signOut } from "firebase/auth";
 
 const initialState = {
   isAuthenticated: false,
-  isLoading: true,
+  isLoading: false, // Changed to false initially
   user: null,          // Your custom user data (from MongoDB)
   firebaseUser: null,  // Firebase auth user data
+  authChecked: false,  // New flag to track if auth has been checked
 };
 
 // Register with Firebase + Backend
@@ -68,14 +69,20 @@ export const checkAuth = createAsyncThunk(
   "auth/checkAuth",
   async (firebaseToken, { rejectWithValue }) => {
     try {
+      const headers = {
+        "Cache-Control": "no-store, no-cache, must-revalidate, proxy-revalidate",
+      };
+      
+      // Add Authorization header if Firebase token is provided
+      if (firebaseToken) {
+        headers.Authorization = `Bearer ${firebaseToken}`;
+      }
+
       const response = await axios.get(
         "https://nemmoh-ecommerce-server.onrender.com/api/auth/check-auth",
         {
           withCredentials: true,
-          headers: {
-            Authorization: `Bearer ${firebaseToken}`,
-            "Cache-Control": "no-store, no-cache, must-revalidate, proxy-revalidate",
-          },
+          headers,
         }
       );
       return response.data;
@@ -92,6 +99,7 @@ const authSlice = createSlice({
     setUser: (state, action) => {
       state.user = action.payload;
       state.isAuthenticated = !!action.payload;
+      state.authChecked = true;
     },
     setFirebaseUser: (state, action) => {
       state.firebaseUser = action.payload;
@@ -100,7 +108,15 @@ const authSlice = createSlice({
       state.isAuthenticated = false;
       state.user = null;
       state.firebaseUser = null;
+      state.authChecked = true;
+      state.isLoading = false;
     },
+    setAuthChecked: (state, action) => {
+      state.authChecked = action.payload;
+    },
+    setLoading: (state, action) => {
+      state.isLoading = action.payload;
+    }
   },
   extraReducers: (builder) => {
     builder
@@ -123,10 +139,12 @@ const authSlice = createSlice({
         state.isLoading = false;
         state.user = action.payload.success ? action.payload.user : null;
         state.isAuthenticated = action.payload.success;
+        state.authChecked = true;
       })
       .addCase(loginUser.rejected, (state) => {
         state.isLoading = false;
         state.isAuthenticated = false;
+        state.authChecked = true;
       })
       
       // Check Auth
@@ -137,20 +155,31 @@ const authSlice = createSlice({
         state.isLoading = false;
         state.user = action.payload.success ? action.payload.user : null;
         state.isAuthenticated = action.payload.success;
+        state.authChecked = true;
       })
       .addCase(checkAuth.rejected, (state) => {
         state.isLoading = false;
         state.isAuthenticated = false;
+        state.user = null;
+        state.authChecked = true;
       })
       
       // Logout
+      .addCase(logoutUser.pending, (state) => {
+        state.isLoading = true;
+      })
       .addCase(logoutUser.fulfilled, (state) => {
         state.isAuthenticated = false;
         state.user = null;
         state.firebaseUser = null;
+        state.isLoading = false;
+        state.authChecked = true;
+      })
+      .addCase(logoutUser.rejected, (state) => {
+        state.isLoading = false;
       });
   },
 });
 
-export const { setUser, setFirebaseUser, clearAuth } = authSlice.actions;
+export const { setUser, setFirebaseUser, clearAuth, setAuthChecked, setLoading } = authSlice.actions;
 export default authSlice.reducer;

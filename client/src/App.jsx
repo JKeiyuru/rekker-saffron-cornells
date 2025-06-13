@@ -1,3 +1,4 @@
+/* eslint-disable no-unused-vars */
 import { Route, Routes } from "react-router-dom";
 import AuthLayout from "./components/auth/layout";
 import AuthLogin from "./pages/auth/login";
@@ -16,26 +17,80 @@ import ShoppingAccount from "./pages/shopping-view/account";
 import CheckAuth from "./components/common/check-auth";
 import UnauthPage from "./pages/unauth-page";
 import { useDispatch, useSelector } from "react-redux";
-import { useEffect } from "react";
-import { checkAuth } from "./store/auth-slice";
-import { Skeleton } from "@/components/ui/skeleton";
+import { useEffect, useState } from "react";
+import { checkAuth, setFirebaseUser, clearAuth, setUser } from "./store/auth-slice";
+//import { Skeleton } from "@/components/ui/skeleton";
 import PaypalReturnPage from "./pages/shopping-view/paypal-return";
 import PaymentSuccessPage from "./pages/shopping-view/payment-success";
 import SearchProducts from "./pages/shopping-view/search";
+import { auth } from "./firebase";
+import { onAuthStateChanged } from "firebase/auth";
+import SpectacularLoader from  "./components/common/spectacular-loader"
 
 function App() {
   const { user, isAuthenticated, isLoading } = useSelector(
     (state) => state.auth
   );
   const dispatch = useDispatch();
+  const [firebaseInitialized, setFirebaseInitialized] = useState(false);
 
   useEffect(() => {
-    dispatch(checkAuth());
+    let mounted = true;
+
+    // Firebase Auth State Listener
+    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
+      if (!mounted) return;
+
+      try {
+        if (firebaseUser) {
+          // User is signed in with Firebase
+          console.log("Firebase user detected:", firebaseUser.email);
+          
+          // Update Firebase user in Redux
+          dispatch(setFirebaseUser({
+            uid: firebaseUser.uid,
+            email: firebaseUser.email,
+            displayName: firebaseUser.displayName
+          }));
+
+          // Get Firebase token and verify with backend
+          const idToken = await firebaseUser.getIdToken();
+          dispatch(checkAuth(idToken));
+        } else {
+          // User is signed out from Firebase
+          console.log("No Firebase user detected");
+          
+          // Clear Firebase user from Redux
+          dispatch(setFirebaseUser(null));
+          
+          // Check for traditional auth (JWT cookie)
+          dispatch(checkAuth());
+        }
+      } catch (error) {
+        console.error("Auth verification error:", error);
+        if (mounted) {
+          dispatch(clearAuth());
+        }
+      } finally {
+        if (mounted) {
+          setFirebaseInitialized(true);
+        }
+      }
+    });
+
+    // Cleanup function
+    return () => {
+      mounted = false;
+      unsubscribe();
+    };
   }, [dispatch]);
 
-  if (isLoading) return <Skeleton className="w-[800] bg-black h-[600px]" />;
+  // Show loading until Firebase is initialized
+  if (!firebaseInitialized || isLoading) {
+    return <SpectacularLoader/>;
+  }
 
-  console.log(isLoading, user);
+  console.log("Auth State:", { isLoading, isAuthenticated, user });
 
   return (
     <div className="flex flex-col overflow-hidden bg-white">

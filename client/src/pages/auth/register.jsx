@@ -1,11 +1,10 @@
+/* eslint-disable no-unused-vars */
 //client/src/pages/auth/register.jsx
 import CommonForm from "@/components/common/form";
 import { useToast } from "@/components/ui/use-toast";
 import { registerFormControls } from "@/config";
-import { registerUser } from "@/store/auth-slice";
 import { useState } from "react";
-import { useDispatch } from "react-redux";
-import { Link, useNavigate } from "react-router-dom";
+import { Link } from "react-router-dom";
 import { createUserWithEmailAndPassword } from "firebase/auth";
 import { auth } from "@/firebase";
 import { AuthProviders } from "@/components/auth/auth-providers";
@@ -19,8 +18,6 @@ const initialState = {
 function AuthRegister() {
   const [formData, setFormData] = useState(initialState);
   const [isLoading, setIsLoading] = useState(false);
-  const dispatch = useDispatch();
-  const navigate = useNavigate();
   const { toast } = useToast();
 
   async function onSubmit(event) {
@@ -57,8 +54,10 @@ function AuthRegister() {
       if (data.success) {
         toast({
           title: "Account created successfully!",
+          description: "You will be redirected shortly."
         });
-        navigate("/auth/login");
+        // Don't manually navigate - let the auth state change handle it
+        // The Firebase auth state listener in App.jsx will handle the redirect
       } else {
         // If backend registration fails, delete the Firebase user
         await userCredential.user.delete();
@@ -114,8 +113,11 @@ function AuthRegister() {
 
       <AuthProviders 
         onSuccess={(userData) => {
-          toast({ title: "Account created successfully!" });
-          navigate(userData.user.role === 'admin' ? '/admin/dashboard' : '/shop/home');
+          toast({ 
+            title: "Account created successfully!",
+            description: "You will be redirected shortly."
+          });
+          // Don't manually navigate - let the auth state change handle it
         }}
         onError={(error) => {
           toast({
