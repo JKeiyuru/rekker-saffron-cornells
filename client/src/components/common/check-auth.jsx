@@ -1,17 +1,28 @@
-/* eslint-disable react/prop-types */
 // client/src/components/common/check-auth.jsx
 import { Navigate, useLocation } from "react-router-dom";
 import { useSelector } from "react-redux";
-import SpectacularLoader from "./spectacular-loader";
 
 function CheckAuth({ children }) {
   const location = useLocation();
   const { isAuthenticated, user, isLoading } = useSelector((state) => state.auth);
+  
+  // Debug logs - remove after fixing
+  console.log('CheckAuth Debug:', {
+    isAuthenticated,
+    user,
+    isLoading,
+    pathname: location.pathname,
+    userRole: user?.role
+  });
 
   // Show loading spinner while auth state is being determined
   if (isLoading) {
-  return <SpectacularLoader />;
-}
+    return (
+      <div className="flex justify-center items-center h-screen">
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary"></div>
+      </div>
+    );
+  }
 
   const isAuthPage = location.pathname.startsWith("/auth");
   const isAdminPage = location.pathname.startsWith("/admin");

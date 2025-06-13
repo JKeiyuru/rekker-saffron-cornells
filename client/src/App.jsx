@@ -1,4 +1,5 @@
 /* eslint-disable no-unused-vars */
+// client/src/App.jsx
 import { Route, Routes } from "react-router-dom";
 import AuthLayout from "./components/auth/layout";
 import AuthLogin from "./pages/auth/login";
@@ -18,8 +19,7 @@ import CheckAuth from "./components/common/check-auth";
 import UnauthPage from "./pages/unauth-page";
 import { useDispatch, useSelector } from "react-redux";
 import { useEffect, useState } from "react";
-import { checkAuth, setFirebaseUser, clearAuth, setUser } from "./store/auth-slice";
-//import { Skeleton } from "@/components/ui/skeleton";
+import { checkAuth, setFirebaseUser, clearAuth, syncFirebaseAuth } from "./store/auth-slice";
 import PaypalReturnPage from "./pages/shopping-view/paypal-return";
 import PaymentSuccessPage from "./pages/shopping-view/payment-success";
 import SearchProducts from "./pages/shopping-view/search";
@@ -37,37 +37,41 @@ function App() {
   useEffect(() => {
     let mounted = true;
 
+    console.log('🚀 App: Setting up Firebase auth listener...');
+
     // Firebase Auth State Listener
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
       if (!mounted) return;
 
       try {
         if (firebaseUser) {
-          // User is signed in with Firebase
-          console.log("Firebase user detected:", firebaseUser.email);
+          console.log('🔥 Firebase user detected:', firebaseUser.email);
           
-          // Update Firebase user in Redux
+          // Update Firebase user in Redux immediately
           dispatch(setFirebaseUser({
             uid: firebaseUser.uid,
             email: firebaseUser.email,
             displayName: firebaseUser.displayName
           }));
 
-          // Get Firebase token and verify with backend
-          const idToken = await firebaseUser.getIdToken();
-          dispatch(checkAuth(idToken));
+          // Sync Firebase auth with backend
+          console.log('🔄 Syncing Firebase user with backend...');
+          const syncResult = await dispatch(syncFirebaseAuth(firebaseUser));
+          
+          console.log('🔄 Firebase sync result:', syncResult.payload?.success);
+          
         } else {
-          // User is signed out from Firebase
-          console.log("No Firebase user detected");
+          console.log('🚫 No Firebase user detected');
           
           // Clear Firebase user from Redux
           dispatch(setFirebaseUser(null));
           
-          // Check for traditional auth (JWT cookie)
-          dispatch(checkAuth());
+          // Check for traditional auth (JWT cookie) as fallback
+          console.log('🔍 Checking for traditional auth...');
+          await dispatch(checkAuth());
         }
       } catch (error) {
-        console.error("Auth verification error:", error);
+        console.error('❌ Auth verification error:', error);
         if (mounted) {
           dispatch(clearAuth());
         }
@@ -80,6 +84,7 @@ function App() {
 
     // Cleanup function
     return () => {
+      console.log('🧹 App: Cleaning up Firebase auth listener...');
       mounted = false;
       unsubscribe();
     };
@@ -87,10 +92,17 @@ function App() {
 
   // Show loading until Firebase is initialized
   if (!firebaseInitialized || isLoading) {
+    console.log('⏳ App: Showing loader...', { firebaseInitialized, isLoading });
     return <SpectacularLoader/>;
   }
 
-  console.log("Auth State:", { isLoading, isAuthenticated, user });
+  console.log('🎯 App render - Auth State:', { 
+    isLoading, 
+    isAuthenticated, 
+    userRole: user?.role,
+    userEmail: user?.email || user?.userName,
+    firebaseInitialized 
+  });
 
   return (
     <div className="flex flex-col overflow-hidden bg-white">

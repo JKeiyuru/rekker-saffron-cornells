@@ -1,9 +1,10 @@
+/* eslint-disable no-unused-vars */
 //client/src/pages/auth/login.jsx
 import CommonForm from "@/components/common/form";
 import { useToast } from "@/components/ui/use-toast";
 import { loginFormControls } from "@/config";
-import { loginUser } from "@/store/auth-slice";
-import { useState } from "react";
+import { loginUser, syncFirebaseAuth } from "@/store/auth-slice";
+import { useState, useEffect } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import { Link, useNavigate } from "react-router-dom";
 import { signInWithEmailAndPassword } from "firebase/auth";
@@ -23,13 +24,22 @@ function AuthLogin() {
   const navigate = useNavigate();
   const { isAuthenticated, user } = useSelector((state) => state.auth);
 
+  // Navigate when user becomes authenticated
+  useEffect(() => {
+    if (isAuthenticated && user) {
+      const targetRoute = user.role === 'admin' ? '/admin/dashboard' : '/shop/home';
+      console.log('🎯 Navigation triggered - User role:', user.role, '-> Route:', targetRoute);
+      navigate(targetRoute, { replace: true });
+    }
+  }, [isAuthenticated, user, navigate]);
+
   // Helper function to handle successful login navigation
   const handleSuccessfulLogin = (userData, message = "Logged in successfully!") => {
     toast({ title: message });
-    
-    // Don't manually navigate - let the auth state change handle it
-    // The Firebase auth state listener will trigger navigation
-    console.log('Login successful for user:', userData);
+    console.log('✅ Login successful for user:', {
+      email: userData.email || userData.userName,
+      role: userData.role
+    });
   };
 
   async function onSubmit(event) {
@@ -37,31 +47,42 @@ function AuthLogin() {
     setIsLoading(true);
 
     try {
-      // Try Firebase authentication first
+      console.log('🔐 Starting Firebase authentication...');
+      
+      // Firebase authentication
       const userCredential = await signInWithEmailAndPassword(
         auth,
         formData.email,
         formData.password
       );
       
-      console.log('Firebase login successful:', userCredential.user.email);
-      // Don't handle navigation here - the auth state listener will handle it
-      handleSuccessfulLogin({ email: userCredential.user.email });
+      console.log('✅ Firebase login successful:', userCredential.user.email);
+      
+      // Firebase auth state change will trigger the sync in App.jsx
+      // We don't need to manually sync here anymore
+      
+      // Just show success message - navigation will be handled by useEffect
+      handleSuccessfulLogin({ 
+        email: userCredential.user.email,
+        role: 'pending...' // Will be updated after sync
+      });
       
     } catch (firebaseError) {
-      console.error('Firebase login error:', firebaseError);
+      console.error('❌ Firebase login error:', firebaseError);
       
       // If Firebase fails, try traditional backend login
       try {
-        const response = await dispatch(loginUser(formData));
+        console.log('🔄 Trying traditional backend login...');
+        const response = await dispatch(loginUser({ formData }));
         
         if (response?.payload?.success) {
           handleSuccessfulLogin(response.payload.user);
+          // Navigation will be handled by useEffect
         } else {
           throw new Error(response?.payload?.message || 'Backend login failed');
         }
       } catch (backendError) {
-        console.error('Backend login error:', backendError);
+        console.error('❌ Backend login error:', backendError);
         
         // Provide specific error messages
         let errorMessage = "Login failed. Please check your credentials and try again.";
@@ -74,6 +95,8 @@ function AuthLogin() {
           errorMessage = "Invalid email address format.";
         } else if (firebaseError.code === 'auth/user-disabled') {
           errorMessage = "This account has been disabled. Please contact support.";
+        } else if (firebaseError.code === 'auth/invalid-credential') {
+          errorMessage = "Invalid credentials. Please check your email and password.";
         } else if (firebaseError.message) {
           errorMessage = firebaseError.message;
         }
@@ -89,13 +112,16 @@ function AuthLogin() {
     }
   }
 
-  // Handle Google/Social login success - simplified
+  // Handle Google/Social login success
   const handleSocialLoginSuccess = (userData) => {
-    handleSuccessfulLogin(userData.user, "Logged in successfully!");
+    console.log('🎉 Social login successful:', userData);
+    handleSuccessfulLogin(userData.user || userData, "Logged in successfully!");
+    // Navigation will be handled by useEffect when Redux state updates
   };
 
   // Handle social login error
   const handleSocialLoginError = (error) => {
+    console.error('❌ Social login error:', error);
     toast({
       title: "Authentication failed",
       description: error,
@@ -103,11 +129,10 @@ function AuthLogin() {
     });
   };
 
-  // If already authenticated, don't show login form
+  // Don't render the form if already authenticated
   if (isAuthenticated && user) {
-    const targetRoute = user.role === 'admin' ? '/admin/dashboard' : '/shop/home';
-    navigate(targetRoute, { replace: true });
-    return null;
+    console.log('👤 User already authenticated, hiding login form');
+    return null; // Let useEffect handle navigation
   }
 
   return (
