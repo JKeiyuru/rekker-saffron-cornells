@@ -1,5 +1,5 @@
 /* eslint-disable no-unused-vars */
-import { HousePlug, LogOut, Menu, ShoppingCart, UserCog, Heart, HeartOff, Phone, MapPin, Clock, Truck } from "lucide-react";
+import { HousePlug, LogOut, Menu, ShoppingCart, UserCog, Heart, HeartOff, Phone, MapPin, Clock, Truck, ChevronDown, ChevronUp } from "lucide-react";
 import logo from "../../assets/Tempara1.5.jpg";
 import {
   Link,
@@ -65,7 +65,6 @@ function MenuItems() {
           </Label>
         ))}
       </nav>
-      <ContactInfo />
     </div>
   );
 }
@@ -155,7 +154,62 @@ function HeaderRightContent() {
   );
 }
 
-function ContactInfo() {
+function MobileContactInfo() {
+  const [isExpanded, setIsExpanded] = useState(false);
+
+  return (
+    <div className="lg:hidden">
+      {/* Compact Contact Bar */}
+      <div className="bg-gradient-to-r from-red-900 to-black px-3 py-2">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-4 text-xs text-white overflow-hidden">
+            <div className="flex items-center whitespace-nowrap">
+              <Phone className="h-3 w-3 mr-1 text-red-400 flex-shrink-0" />
+              <span className="font-medium">0736601307</span>
+            </div>
+            <div className="flex items-center whitespace-nowrap">
+              <Clock className="h-3 w-3 mr-1 text-red-400 flex-shrink-0" />
+              <span className="font-medium">6:30 AM - 6:00 PM</span>
+            </div>
+          </div>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setIsExpanded(!isExpanded)}
+            className="h-6 w-6 p-0 text-white hover:bg-red-800/50"
+          >
+            {isExpanded ? (
+              <ChevronUp className="h-3 w-3" />
+            ) : (
+              <ChevronDown className="h-3 w-3" />
+            )}
+          </Button>
+        </div>
+        
+        {/* Expanded Contact Info */}
+        {isExpanded && (
+          <div className="mt-3 pt-3 border-t border-red-700/50 space-y-2">
+            <div className="flex items-center text-xs text-white">
+              <MapPin className="h-3 w-3 mr-2 text-red-400 flex-shrink-0" />
+              <span className="font-semibold text-red-300">Location:</span>
+              <span className="ml-1 font-medium">Magic Business Center, Nairobi</span>
+            </div>
+            
+            <div className="flex items-start text-xs text-white">
+              <Truck className="h-3 w-3 mr-2 text-red-400 flex-shrink-0 mt-0.5" />
+              <div>
+                <span className="font-semibold text-red-300">Express Delivery:</span>
+                <span className="ml-1 font-medium">Call for expedited delivery (extra cost)</span>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function DesktopContactInfo() {
   return (
     <div className="hidden lg:block mt-2">
       <div className="bg-gradient-to-r from-red-900 to-black rounded-lg px-4 py-3 shadow-md">
@@ -194,11 +248,19 @@ function ShoppingHeader() {
 
   return (
     <header className="sticky top-0 z-40 w-full border-b bg-background">
+      {/* Mobile Contact Info Bar */}
+      <MobileContactInfo />
+      
+      {/* Main Header */}
       <div className="flex h-16 items-center justify-between px-4 md:px-6">
         <Link to="/shop/home" className="flex items-center gap-2">
           <HousePlug className="h-6 w-6 text-amber-800" />
-          <span className="font-bold"><img src={logo} alt="Tempara Logo" className="h-10 w-20 inline" /></span>
+          <span className="font-bold">
+            <img src={logo} alt="Tempara Logo" className="h-10 w-20 inline" />
+          </span>
         </Link>
+        
+        {/* Mobile Menu */}
         <Sheet>
           <SheetTrigger asChild>
             <Button variant="outline" size="icon" className="lg:hidden">
@@ -211,10 +273,14 @@ function ShoppingHeader() {
             <HeaderRightContent />
           </SheetContent>
         </Sheet>
+        
+        {/* Desktop Menu */}
         <div className="hidden lg:block">
           <MenuItems />
+          <DesktopContactInfo />
         </div>
 
+        {/* Desktop Right Content */}
         <div className="hidden lg:block">
           <HeaderRightContent />
         </div>
