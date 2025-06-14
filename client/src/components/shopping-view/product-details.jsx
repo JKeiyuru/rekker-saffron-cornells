@@ -14,17 +14,20 @@ import { Label } from "../ui/label";
 import StarRatingComponent from "../common/star-rating";
 import { useEffect, useState } from "react";
 import { addReview, getReviews } from "@/store/shop/review-slice";
+import { addToWishlist } from "@/store/shop/wishlist-slice"; // Add this import
 
 function ProductDetailsDialog({ open, setOpen, productDetails }) {
   const [reviewMsg, setReviewMsg] = useState("");
   const [rating, setRating] = useState(0);
   const [selectedVariation, setSelectedVariation] = useState(null);
   const [isDescriptionExpanded, setIsDescriptionExpanded] = useState(false);
+  const [isWishlisted, setIsWishlisted] = useState(false); // Add wishlist state
 
   const dispatch = useDispatch();
   const { user } = useSelector((state) => state.auth);
   const { cartItems } = useSelector((state) => state.shopCart);
   const { reviews } = useSelector((state) => state.shopReview);
+  const { wishlistItems } = useSelector((state) => state.shopWishlist); // Add wishlist selector
   const { toast } = useToast();
 
   // Handle image display logic
@@ -32,6 +35,16 @@ function ProductDetailsDialog({ open, setOpen, productDetails }) {
   const displayedTitle = selectedVariation
     ? `${productDetails?.title} (${selectedVariation.label})`
     : productDetails?.title;
+
+  // Check if product is in wishlist
+  useEffect(() => {
+    if (productDetails && wishlistItems) {
+      const isInWishlist = wishlistItems.some(
+        (item) => item.productId === productDetails._id
+      );
+      setIsWishlisted(isInWishlist);
+    }
+  }, [productDetails, wishlistItems]);
 
   // Create array of all images for thumbnails
   const getAllImages = () => {
@@ -145,6 +158,31 @@ function ProductDetailsDialog({ open, setOpen, productDetails }) {
     });
   }
 
+  // Add wishlist handler
+  function handleWishlist() {
+    if (!user) {
+      toast({
+        title: "Please login to add items to wishlist",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    dispatch(
+      addToWishlist({
+        userId: user?.id,
+        productId: productDetails?._id,
+      })
+    ).then(() => {
+      setIsWishlisted(!isWishlisted);
+      toast({
+        title: isWishlisted
+          ? "Removed from wishlist"
+          : "Added to wishlist",
+      });
+    });
+  }
+
   useEffect(() => {
     if (productDetails !== null) {
       dispatch(getReviews(productDetails?._id));
@@ -177,8 +215,16 @@ function ProductDetailsDialog({ open, setOpen, productDetails }) {
               <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
                 <Share2 className="h-4 w-4" />
               </Button>
-              <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
-                <Heart className="h-4 w-4" />
+              <Button 
+                variant="ghost" 
+                size="sm" 
+                className="h-8 w-8 p-0"
+                onClick={handleWishlist}
+              >
+                <Heart 
+                  className="h-4 w-4" 
+                  fill={isWishlisted ? "currentColor" : "none"}
+                />
               </Button>
             </div>
           </div>
@@ -259,7 +305,7 @@ function ProductDetailsDialog({ open, setOpen, productDetails }) {
 
             <Separator className="my-4" />
 
-            {/* Mobile Description - Enhanced */}
+            {/* Mobile Description - Improved */}
             <div className="pb-6">
               <div className="flex items-center justify-between mb-3">
                 <h3 className="text-lg font-semibold">Description</h3>
@@ -271,12 +317,12 @@ function ProductDetailsDialog({ open, setOpen, productDetails }) {
                 >
                   {isDescriptionExpanded ? (
                     <>
-                      <span className="mr-1">Less</span>
+                      <span className="mr-1">Show Less</span>
                       <ChevronUp className="h-4 w-4" />
                     </>
                   ) : (
                     <>
-                      <span className="mr-1">More</span>
+                      <span className="mr-1">Show More</span>
                       <ChevronDown className="h-4 w-4" />
                     </>
                   )}
@@ -285,7 +331,7 @@ function ProductDetailsDialog({ open, setOpen, productDetails }) {
               
               <div className="text-gray-700">
                 {isDescriptionExpanded ? (
-                  <div className="max-h-48 overflow-y-auto bg-gray-50 rounded-lg p-4 border">
+                  <div className="max-h-[200px] overflow-y-auto bg-gray-50 rounded-lg p-4 border">
                     <p className="text-sm leading-relaxed whitespace-pre-wrap">
                       {productDetails?.description}
                     </p>
@@ -300,7 +346,7 @@ function ProductDetailsDialog({ open, setOpen, productDetails }) {
 
             <Separator className="my-4" />
 
-            {/* Reviews Section - Enhanced for Mobile */}
+            {/* Reviews Section */}
             <div className="pb-6">
               <h2 className="text-lg font-semibold mb-4">Customer Reviews</h2>
               
@@ -403,7 +449,7 @@ function ProductDetailsDialog({ open, setOpen, productDetails }) {
           </div>
         </div>
 
-        {/* Desktop Layout (unchanged from original but with some enhancements) */}
+        {/* Desktop Layout */}
         <div className="hidden sm:grid grid-cols-2 gap-8 p-12 h-full overflow-y-auto">
           <div className="relative overflow-hidden rounded-lg">
             <img
