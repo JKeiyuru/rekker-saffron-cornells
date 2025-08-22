@@ -8,6 +8,7 @@ import { UploadCloud, X, ImageIcon, Trash2 } from "lucide-react";
 import { Skeleton } from "../ui/skeleton";
 import { useToast } from "../ui/use-toast";
 import axios from "axios";
+import { API_BASE_URL } from "/home/jkeiyuru/Development/tempora/mern-ecommerce-2024/client/src/config/config.js"
 
 function VariationUploader({ formData, setFormData }) {
   const [imageFile, setImageFile] = useState(null);
@@ -69,7 +70,7 @@ function VariationUploader({ formData, setFormData }) {
     formDataUpload.append("my_file", file);
 
     const response = await axios.post(
-      "https://nemmoh-ecommerce-server.onrender.com/api/admin/products/upload-image",
+      `${API_BASE_URL}/api/admin/products/upload-image`,
       formDataUpload,
       {
         headers: {

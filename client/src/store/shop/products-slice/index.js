@@ -1,5 +1,6 @@
 import { createAsyncThunk, createSlice } from "@reduxjs/toolkit";
 import axios from "axios";
+import { API_BASE_URL } from "/home/jkeiyuru/Development/tempora/mern-ecommerce-2024/client/src/config/config.js"
 
 const initialState = {
   isLoading: false,
@@ -18,7 +19,7 @@ export const fetchAllFilteredProducts = createAsyncThunk(
     });
 
     const result = await axios.get(
-      `https://nemmoh-ecommerce-server.onrender.com/api/shop/products/get?${query}`
+      `${API_BASE_URL}/api/shop/products/get?${query}`
     );
 
     console.log(result);
@@ -31,7 +32,7 @@ export const fetchProductDetails = createAsyncThunk(
   "/products/fetchProductDetails",
   async (id) => {
     const result = await axios.get(
-      `https://nemmoh-ecommerce-server.onrender.com/api/shop/products/get/${id}`
+      `${API_BASE_URL}/api/shop/products/get/${id}`
     );
 
     return result?.data;

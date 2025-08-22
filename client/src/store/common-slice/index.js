@@ -1,5 +1,6 @@
 import { createAsyncThunk, createSlice } from "@reduxjs/toolkit";
 import axios from "axios";
+import { API_BASE_URL } from "/home/jkeiyuru/Development/tempora/mern-ecommerce-2024/client/src/config/config.js"
 
 const initialState = {
   isLoading: false,
@@ -10,7 +11,7 @@ export const getFeatureImages = createAsyncThunk(
   "/order/getFeatureImages",
   async () => {
     const response = await axios.get(
-      `https://nemmoh-ecommerce-server.onrender.com/api/common/feature/get`
+      `${API_BASE_URL}/api/common/feature/get`
     );
 
     return response.data;
@@ -21,7 +22,7 @@ export const addFeatureImage = createAsyncThunk(
   "/order/addFeatureImage",
   async (image) => {
     const response = await axios.post(
-      `https://nemmoh-ecommerce-server.onrender.com/api/common/feature/add`,
+      `${API_BASE_URL}/api/common/feature/add`,
       { image }
     );
 

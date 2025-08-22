@@ -3,6 +3,7 @@
 
 import { useState } from 'react';
 import axios from 'axios';
+import { API_BASE_URL } from "/home/jkeiyuru/Development/tempora/mern-ecommerce-2024/client/src/config/config.js"
 
 function DirectApiTest() {
   const [result, setResult] = useState(null);
@@ -36,7 +37,7 @@ function DirectApiTest() {
 
     try {
       const response = await axios.post(
-        'https://nemmoh-ecommerce-server.onrender.com/api/admin/products/add',
+        `${API_BASE_URL}/api/admin/products/add`,
         testProduct
       );
       
@@ -56,7 +57,7 @@ function DirectApiTest() {
     
     try {
       const response = await axios.get(
-        'https://nemmoh-ecommerce-server.onrender.com/api/admin/products/get'
+        `${API_BASE_URL}/api/admin/products/get`
       );
       
       console.log("Fetch Products Response:", response.data);

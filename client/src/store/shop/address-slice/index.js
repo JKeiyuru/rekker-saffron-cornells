@@ -1,5 +1,6 @@
 import { createSlice, createAsyncThunk } from "@reduxjs/toolkit";
 import axios from "axios";
+import { API_BASE_URL } from "/home/jkeiyuru/Development/tempora/mern-ecommerce-2024/client/src/config/config.js"
 
 const initialState = {
   isLoading: false,
@@ -10,7 +11,7 @@ export const addNewAddress = createAsyncThunk(
   "/addresses/addNewAddress",
   async (formData) => {
     const response = await axios.post(
-      "https://nemmoh-ecommerce-server.onrender.com/api/shop/address/add",
+      `${API_BASE_URL}/api/shop/address/add`,
       formData
     );
 
@@ -22,7 +23,7 @@ export const fetchAllAddresses = createAsyncThunk(
   "/addresses/fetchAllAddresses",
   async (userId) => {
     const response = await axios.get(
-      `https://nemmoh-ecommerce-server.onrender.com/api/shop/address/get/${userId}`
+      `${API_BASE_URL}/api/shop/address/get/${userId}`
     );
 
     return response.data;
@@ -33,7 +34,7 @@ export const editaAddress = createAsyncThunk(
   "/addresses/editaAddress",
   async ({ userId, addressId, formData }) => {
     const response = await axios.put(
-      `https://nemmoh-ecommerce-server.onrender.com/api/shop/address/update/${userId}/${addressId}`,
+      `${API_BASE_URL}/api/shop/address/update/${userId}/${addressId}`,
       formData
     );
 
@@ -45,7 +46,7 @@ export const deleteAddress = createAsyncThunk(
   "/addresses/deleteAddress",
   async ({ userId, addressId }) => {
     const response = await axios.delete(
-      `https://nemmoh-ecommerce-server.onrender.com/api/shop/address/delete/${userId}/${addressId}`
+      `${API_BASE_URL}/api/shop/address/delete/${userId}/${addressId}`
     );
 
     return response.data;

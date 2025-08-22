@@ -1,6 +1,7 @@
 // src/store/admin/product-slice/index.js
 import { createAsyncThunk, createSlice } from "@reduxjs/toolkit";
 import axios from "axios";
+import { API_BASE_URL } from "/home/jkeiyuru/Development/tempora/mern-ecommerce-2024/client/src/config/config.js"
 
 const initialState = {
   isLoading: false,
@@ -22,7 +23,7 @@ export const addNewProduct = createAsyncThunk(
       });
 
       const response = await axios.post(
-        "https://nemmoh-ecommerce-server.onrender.com/api/admin/products/add",
+        `${API_BASE_URL}/api/admin/products/add`,
         formData,
         {
           headers: {
@@ -45,7 +46,7 @@ export const fetchAllProducts = createAsyncThunk(
   async (_, { rejectWithValue }) => {
     try {
       const response = await axios.get(
-        "https://nemmoh-ecommerce-server.onrender.com/api/admin/products/get"
+        `${API_BASE_URL}/api/admin/products/get`
       );
       
       console.log("Redux: Fetched products:", {
@@ -82,7 +83,7 @@ export const editProduct = createAsyncThunk(
       });
 
       const response = await axios.put(
-        `https://nemmoh-ecommerce-server.onrender.com/api/admin/products/edit/${id}`,
+        `${API_BASE_URL}/api/admin/products/edit/${id}`,
         formData,
         {
           headers: {
@@ -107,7 +108,7 @@ export const deleteProduct = createAsyncThunk(
       console.log("Redux: Deleting product with ID:", id);
       
       const response = await axios.delete(
-        `https://nemmoh-ecommerce-server.onrender.com/api/admin/products/delete/${id}`
+        `${API_BASE_URL}/api/admin/products/delete/${id}`
       );
 
       console.log("Redux: Delete product response:", response.data);

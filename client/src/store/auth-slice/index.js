@@ -3,6 +3,7 @@ import { createAsyncThunk, createSlice } from "@reduxjs/toolkit";
 import axios from "axios";
 import { auth } from "@/firebase";
 import { signOut } from "firebase/auth";
+import { API_BASE_URL } from "/home/jkeiyuru/Development/tempora/mern-ecommerce-2024/client/src/config/config.js"
 
 const initialState = {
   isAuthenticated: false,
@@ -18,7 +19,7 @@ export const registerUser = createAsyncThunk(
   async ({ formData, firebaseUid }, { rejectWithValue }) => {
     try {
       const response = await axios.post(
-        "https://nemmoh-ecommerce-server.onrender.com/api/auth/register",
+        `${API_BASE_URL}/api/auth/register`,
         { ...formData, firebaseUid },
         { withCredentials: true }
       );
@@ -35,7 +36,7 @@ export const loginUser = createAsyncThunk(
   async ({ formData, firebaseUid }, { rejectWithValue }) => {
     try {
       const response = await axios.post(
-        "https://nemmoh-ecommerce-server.onrender.com/api/auth/login",
+        `${API_BASE_URL}/api/auth/login`,
         { ...formData, firebaseUid },
         { withCredentials: true }
       );
@@ -53,7 +54,7 @@ export const logoutUser = createAsyncThunk(
     try {
       await signOut(auth);
       const response = await axios.post(
-        "https://nemmoh-ecommerce-server.onrender.com/api/auth/logout",
+        `${API_BASE_URL}/api/auth/logout`,
         {},
         { withCredentials: true }
       );
@@ -84,7 +85,7 @@ export const checkAuth = createAsyncThunk(
 
       console.log('📡 Making checkAuth request to backend...');
       const response = await axios.get(
-        "https://nemmoh-ecommerce-server.onrender.com/api/auth/check-auth",
+        `${API_BASE_URL}/api/auth/check-auth`,
         {
           withCredentials: true,
           headers,
@@ -117,7 +118,7 @@ export const syncFirebaseAuth = createAsyncThunk(
       
       // Try to authenticate with backend using the social-login endpoint
       const response = await axios.post(
-        "https://nemmoh-ecommerce-server.onrender.com/api/auth/social-login",
+        `${API_BASE_URL}/api/auth/social-login`,
         {
           token: idToken,
           uid: firebaseUser.uid,
