@@ -145,10 +145,14 @@ router.post("/firebase-login", verifyFirebaseToken, async (req, res) => {
     
     console.log('🔐 Firebase Login - UID:', uid, 'Email:', firebaseEmail);
     
-    // Find user by Firebase UID or email
-    const user = await User.findOne({
-      $or: [{ firebaseUid: uid }, { email: firebaseEmail }],
-    });
+    // Find user by Firebase UID first, then by email
+    let user = await User.findOne({ firebaseUid: uid });
+    
+    if (!user) {
+      // If not found by firebaseUid, try to find by email
+      user = await User.findOne({ email: firebaseEmail });
+      console.log('🔍 Firebase login - User lookup by email result:', user ? 'Found existing user' : 'No user found');
+    }
 
     if (!user) {
       return res.status(404).json({
@@ -161,6 +165,7 @@ router.post("/firebase-login", verifyFirebaseToken, async (req, res) => {
 
     // Update user with Firebase UID if not already set
     if (!user.firebaseUid) {
+      console.log('🔄 Updating user with Firebase UID');
       user.firebaseUid = uid;
       user.provider = 'firebase';
       await user.save();
@@ -209,29 +214,56 @@ router.post("/social-login", verifyFirebaseToken, async (req, res) => {
     
     console.log('🎉 Social Login - UID:', uid, 'Email:', email, 'Name:', name);
 
-    // Find or create user
-    let user = await User.findOne({ 
-      $or: [{ email }, { firebaseUid: uid }] 
-    });
+    // Find user by Firebase UID first, then by email
+    let user = await User.findOne({ firebaseUid: uid });
+    
+    if (!user) {
+      // If not found by firebaseUid, try to find by email
+      user = await User.findOne({ email });
+      console.log('🔍 User lookup by email result:', user ? 'Found existing user' : 'No user found');
+    }
 
     if (!user) {
       console.log('👤 Creating new user for social login');
-      // Create new user
-      user = new User({
-        userName: name || email.split('@')[0],
-        email,
-        firebaseUid: uid,
-        provider: 'google',
-        role: 'user'
-      });
-      await user.save();
-      console.log('✅ New social user created:', user.email);
+      
+      // Generate a unique username to avoid duplicates
+      let userName = name || email.split('@')[0];
+      let attempts = 0;
+      const maxAttempts = 10;
+      
+      while (attempts < maxAttempts) {
+        try {
+          // Try to create user with current userName
+          user = new User({
+            userName: attempts === 0 ? userName : `${userName}${attempts}`,
+            email,
+            firebaseUid: uid,
+            provider: 'google',
+            role: 'user'
+          });
+          await user.save();
+          console.log('✅ New social user created:', user.email, 'with userName:', user.userName);
+          break;
+        } catch (saveError) {
+          if (saveError.code === 11000 && saveError.keyValue?.userName) {
+            // Duplicate userName, try with a number suffix
+            attempts++;
+            console.log(`⚠️ Username '${attempts === 1 ? userName : userName + (attempts - 1)}' taken, trying '${userName}${attempts}'`);
+            if (attempts >= maxAttempts) {
+              throw new Error('Unable to create unique username after multiple attempts');
+            }
+          } else {
+            throw saveError; // Re-throw if it's not a userName duplicate error
+          }
+        }
+      }
     } else if (!user.firebaseUid) {
       console.log('🔄 Updating existing user with Firebase UID');
       // Update existing user with Firebase UID
       user.firebaseUid = uid;
       user.provider = user.provider || 'google';
       await user.save();
+      console.log('✅ Updated existing user with Firebase UID:', user.email);
     }
 
     console.log('✅ Social login successful for user:', user.email, 'Role:', user.role);
