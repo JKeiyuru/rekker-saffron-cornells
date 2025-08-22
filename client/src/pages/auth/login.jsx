@@ -42,6 +42,76 @@ function AuthLogin() {
     });
   };
 
+  // Helper function to manually sync Firebase user with backend
+  const syncFirebaseUserWithBackend = async (firebaseUser) => {
+    try {
+      console.log('🔄 Manual sync - Getting fresh Firebase token...');
+      const idToken = await firebaseUser.getIdToken(true); // Force refresh
+      console.log('🎫 Got fresh Firebase token, length:', idToken.length);
+
+      // Try firebase-login first (for existing users)
+      console.log('🔐 Trying firebase-login endpoint...');
+      const loginResponse = await fetch('/api/auth/firebase-login', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${idToken}`
+        },
+        body: JSON.stringify({
+          email: firebaseUser.email,
+          firebaseUid: firebaseUser.uid
+        })
+      });
+
+      const loginData = await loginResponse.json();
+      console.log('🔐 Firebase login response:', loginData);
+
+      if (loginData.success) {
+        // Dispatch to Redux to update auth state
+        dispatch({
+          type: 'auth/setUser',
+          payload: {
+            isAuthenticated: true,
+            user: loginData.user
+          }
+        });
+        return loginData;
+      } else if (loginResponse.status === 404) {
+        // User doesn't exist, try social-login to create account
+        console.log('👤 User not found, trying social-login...');
+        const socialResponse = await fetch('/api/auth/social-login', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${idToken}`
+          }
+        });
+
+        const socialData = await socialResponse.json();
+        console.log('🎉 Social login response:', socialData);
+
+        if (socialData.success) {
+          // Dispatch to Redux to update auth state
+          dispatch({
+            type: 'auth/setUser',
+            payload: {
+              isAuthenticated: true,
+              user: socialData.user
+            }
+          });
+          return socialData;
+        } else {
+          throw new Error(socialData.message || 'Social login failed');
+        }
+      } else {
+        throw new Error(loginData.message || 'Firebase login failed');
+      }
+    } catch (error) {
+      console.error('❌ Manual sync error:', error);
+      throw error;
+    }
+  };
+
   async function onSubmit(event) {
     event.preventDefault();
     setIsLoading(true);
@@ -58,14 +128,19 @@ function AuthLogin() {
       
       console.log('✅ Firebase login successful:', userCredential.user.email);
       
-      // Firebase auth state change will trigger the sync in App.jsx
-      // We don't need to manually sync here anymore
-      
-      // Just show success message - navigation will be handled by useEffect
-      handleSuccessfulLogin({ 
-        email: userCredential.user.email,
-        role: 'pending...' // Will be updated after sync
-      });
+      // Instead of relying on the auth state listener, manually sync here
+      try {
+        const syncResult = await syncFirebaseUserWithBackend(userCredential.user);
+        console.log('✅ Manual sync successful:', syncResult);
+        
+        handleSuccessfulLogin(syncResult.user);
+        // Navigation will be handled by useEffect when Redux state updates
+        
+      } catch (syncError) {
+        console.error('❌ Manual sync failed:', syncError);
+        // Firebase auth succeeded but backend sync failed
+        throw new Error('Login successful but account sync failed. Please try again.');
+      }
       
     } catch (firebaseError) {
       console.error('❌ Firebase login error:', firebaseError);
@@ -113,10 +188,22 @@ function AuthLogin() {
   }
 
   // Handle Google/Social login success
-  const handleSocialLoginSuccess = (userData) => {
+  const handleSocialLoginSuccess = async (userData) => {
     console.log('🎉 Social login successful:', userData);
-    handleSuccessfulLogin(userData.user || userData, "Logged in successfully!");
-    // Navigation will be handled by useEffect when Redux state updates
+    
+    // The AuthProviders component should handle the backend sync,
+    // but we can add a fallback here if needed
+    if (userData.user) {
+      handleSuccessfulLogin(userData.user, "Logged in successfully!");
+      // Navigation will be handled by useEffect when Redux state updates
+    } else {
+      console.error('❌ Social login userData missing user object');
+      toast({
+        title: "Login incomplete",
+        description: "Please try logging in again.",
+        variant: "destructive"
+      });
+    }
   };
 
   // Handle social login error

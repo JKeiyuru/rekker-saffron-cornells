@@ -24,23 +24,34 @@ const verifyFirebaseToken = async (req, res, next) => {
     }
 
     const idToken = authHeader.split(" ")[1];
-    const decodedToken = await admin.auth().verifyIdToken(idToken);
-    req.firebaseUser = decodedToken;
     
+    // Add more detailed logging for debugging
+    console.log('🔍 Verifying Firebase token...');
+    console.log('Token length:', idToken.length);
+    
+    const decodedToken = await admin.auth().verifyIdToken(idToken);
+    console.log('✅ Token verified for user:', decodedToken.email);
+    
+    req.firebaseUser = decodedToken;
     next();
   } catch (error) {
-    console.error("Token verification error:", error.message);
+    console.error("❌ Token verification error:", error.message);
+    console.error("Error code:", error.code);
+    
+    let errorMessage = "Invalid authentication token";
     
     if (error.code === 'auth/id-token-expired') {
-      return res.status(401).json({ 
-        success: false, 
-        message: "Session expired. Please login again." 
-      });
+      errorMessage = "Session expired. Please login again.";
+    } else if (error.code === 'auth/argument-error') {
+      errorMessage = "Invalid token format";
+    } else if (error.code === 'auth/id-token-revoked') {
+      errorMessage = "Token has been revoked";
     }
     
-    return res.status(403).json({ 
+    return res.status(401).json({ 
       success: false, 
-      message: "Invalid authentication token" 
+      message: errorMessage,
+      errorCode: error.code 
     });
   }
 };
@@ -56,6 +67,8 @@ router.post("/firebase-register", verifyFirebaseToken, async (req, res) => {
   try {
     const { userName, email, firebaseUid } = req.body;
     const { uid, email: firebaseEmail } = req.firebaseUser;
+    
+    console.log('🔐 Firebase Registration - UID:', uid, 'Email:', firebaseEmail);
     
     // Ensure the Firebase UID matches
     if (firebaseUid !== uid) {
@@ -86,6 +99,7 @@ router.post("/firebase-register", verifyFirebaseToken, async (req, res) => {
     });
 
     await newUser.save();
+    console.log('✅ New user created:', newUser.email);
     
     // Generate JWT token
     const token = jwt.sign(
@@ -115,7 +129,7 @@ router.post("/firebase-register", verifyFirebaseToken, async (req, res) => {
       },
     });
   } catch (error) {
-    console.error("Firebase registration error:", error);
+    console.error("❌ Firebase registration error:", error);
     res.status(500).json({
       success: false,
       message: "Internal server error",
@@ -129,6 +143,8 @@ router.post("/firebase-login", verifyFirebaseToken, async (req, res) => {
     const { email, firebaseUid } = req.body;
     const { uid, email: firebaseEmail } = req.firebaseUser;
     
+    console.log('🔐 Firebase Login - UID:', uid, 'Email:', firebaseEmail);
+    
     // Find user by Firebase UID or email
     const user = await User.findOne({
       $or: [{ firebaseUid: uid }, { email: firebaseEmail }],
@@ -140,6 +156,8 @@ router.post("/firebase-login", verifyFirebaseToken, async (req, res) => {
         message: "User not found",
       });
     }
+
+    console.log('✅ User found:', user.email, 'Role:', user.role);
 
     // Update user with Firebase UID if not already set
     if (!user.firebaseUid) {
@@ -176,7 +194,7 @@ router.post("/firebase-login", verifyFirebaseToken, async (req, res) => {
       },
     });
   } catch (error) {
-    console.error("Firebase login error:", error);
+    console.error("❌ Firebase login error:", error);
     res.status(500).json({
       success: false,
       message: "Internal server error",
@@ -184,10 +202,12 @@ router.post("/firebase-login", verifyFirebaseToken, async (req, res) => {
   }
 });
 
-// Social Login Route (Google)
+// Social Login Route (Google) - Updated with better error handling
 router.post("/social-login", verifyFirebaseToken, async (req, res) => {
   try {
     const { uid, email, name } = req.firebaseUser;
+    
+    console.log('🎉 Social Login - UID:', uid, 'Email:', email, 'Name:', name);
 
     // Find or create user
     let user = await User.findOne({ 
@@ -195,6 +215,7 @@ router.post("/social-login", verifyFirebaseToken, async (req, res) => {
     });
 
     if (!user) {
+      console.log('👤 Creating new user for social login');
       // Create new user
       user = new User({
         userName: name || email.split('@')[0],
@@ -204,12 +225,16 @@ router.post("/social-login", verifyFirebaseToken, async (req, res) => {
         role: 'user'
       });
       await user.save();
+      console.log('✅ New social user created:', user.email);
     } else if (!user.firebaseUid) {
+      console.log('🔄 Updating existing user with Firebase UID');
       // Update existing user with Firebase UID
       user.firebaseUid = uid;
-      user.provider = 'google';
+      user.provider = user.provider || 'google';
       await user.save();
     }
+
+    console.log('✅ Social login successful for user:', user.email, 'Role:', user.role);
 
     // Generate JWT token
     const jwtToken = jwt.sign(
@@ -241,15 +266,24 @@ router.post("/social-login", verifyFirebaseToken, async (req, res) => {
     });
 
   } catch (error) {
-    console.error('Social login error:', error);
+    console.error('❌ Social login error:', error);
+    console.error('Error stack:', error.stack);
     
-    const errorMessage = error.code === 'auth/id-token-expired' 
-      ? 'Login session expired. Please try again.'
-      : 'Authentication failed. Please try another method.';
+    let errorMessage = 'Authentication failed. Please try another method.';
+    let statusCode = 401;
+    
+    if (error.code === 'auth/id-token-expired') {
+      errorMessage = 'Login session expired. Please try again.';
+    } else if (error.name === 'MongoError' || error.name === 'ValidationError') {
+      errorMessage = 'Database error. Please try again.';
+      statusCode = 500;
+    }
 
-    res.status(401).json({
+    res.status(statusCode).json({
       success: false,
-      message: errorMessage
+      message: errorMessage,
+      errorCode: error.code,
+      errorName: error.name
     });
   }
 });
@@ -260,15 +294,19 @@ router.post("/logout", logoutUser);
 // Authentication Check Route - Modified to work with both auth methods
 router.get("/check-auth", async (req, res) => {
   try {
+    console.log('🔍 Check auth request received');
+    
     // Try Firebase token first
     const authHeader = req.headers.authorization;
     if (authHeader && authHeader.startsWith("Bearer ")) {
       try {
         const idToken = authHeader.split(" ")[1];
+        console.log('🔥 Trying Firebase token verification...');
         const decodedToken = await admin.auth().verifyIdToken(idToken);
         
         const user = await User.findOne({ firebaseUid: decodedToken.uid });
         if (user) {
+          console.log('✅ Firebase auth check successful for:', user.email);
           return res.status(200).json({
             success: true,
             user: {
@@ -278,32 +316,38 @@ router.get("/check-auth", async (req, res) => {
               userName: user.userName
             }
           });
+        } else {
+          console.log('❌ User not found in database for Firebase UID:', decodedToken.uid);
         }
       } catch (firebaseError) {
-        console.log("Firebase token invalid, trying JWT...");
+        console.log("🔄 Firebase token invalid, trying JWT...", firebaseError.message);
       }
     }
 
     // Fallback to JWT token from cookies
     const token = req.cookies.token;
     if (!token) {
+      console.log('❌ No authentication token found');
       return res.status(401).json({
         success: false,
         message: "No authentication token found"
       });
     }
 
+    console.log('🎫 Trying JWT token verification...');
     const decoded = jwt.verify(token, process.env.JWT_SECRET || "CLIENT_SECRET_KEY");
     
     // Verify user still exists
     const user = await User.findById(decoded.id);
     if (!user) {
+      console.log('❌ User not found for JWT token ID:', decoded.id);
       return res.status(404).json({
         success: false,
         message: "User not found"
       });
     }
 
+    console.log('✅ JWT auth check successful for:', user.email);
     res.status(200).json({
       success: true,
       user: {
@@ -315,7 +359,7 @@ router.get("/check-auth", async (req, res) => {
     });
 
   } catch (error) {
-    console.error("Auth check error:", error);
+    console.error("❌ Auth check error:", error);
     res.status(401).json({ 
       success: false, 
       message: "Invalid authentication token" 
