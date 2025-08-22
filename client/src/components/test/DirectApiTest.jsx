@@ -3,7 +3,8 @@
 
 import { useState } from 'react';
 import axios from 'axios';
-import { API_BASE_URL } from "/home/jkeiyuru/Development/tempora/mern-ecommerce-2024/client/src/config/config.js"
+import { API_BASE_URL } from "@/config/config.js";
+
 
 function DirectApiTest() {
   const [result, setResult] = useState(null);

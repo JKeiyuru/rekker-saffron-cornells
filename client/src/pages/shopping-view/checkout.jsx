@@ -12,7 +12,8 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { Truck, ShoppingCart } from "lucide-react";
 import axios from "axios";
-import { API_BASE_URL } from "/home/jkeiyuru/Development/tempora/mern-ecommerce-2024/client/src/config/config.js"
+import { API_BASE_URL } from "@/config/config.js";
+
 
 function ShoppingCheckout() {
   const { cartItems } = useSelector((state) => state.shopCart);

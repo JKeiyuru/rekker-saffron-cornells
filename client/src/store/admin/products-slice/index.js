@@ -1,7 +1,8 @@
 // src/store/admin/product-slice/index.js
 import { createAsyncThunk, createSlice } from "@reduxjs/toolkit";
 import axios from "axios";
-import { API_BASE_URL } from "/home/jkeiyuru/Development/tempora/mern-ecommerce-2024/client/src/config/config.js"
+import { API_BASE_URL } from "@/config/config.js";
+
 
 const initialState = {
   isLoading: false,
