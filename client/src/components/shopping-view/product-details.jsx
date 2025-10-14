@@ -1,5 +1,7 @@
+/* eslint-disable no-unused-vars */
 /* eslint-disable react/jsx-key */
 /* eslint-disable react/prop-types */
+// client/src/components/shopping-view/product-details.jsx - With Guest Mode Support
 import { StarIcon, ChevronDown, ChevronUp, Heart } from "lucide-react";
 import { Avatar, AvatarFallback } from "../ui/avatar";
 import { Button } from "../ui/button";
@@ -14,19 +16,32 @@ import { Label } from "../ui/label";
 import StarRatingComponent from "../common/star-rating";
 import { useEffect, useState } from "react";
 import { addReview, getReviews } from "@/store/shop/review-slice";
+import { 
+  addToWishlist, 
+  removeFromWishlist,
+  fetchWishlist 
+} from "@/store/shop/wishlist-slice";
+import { useNavigate } from "react-router-dom";
 
 function ProductDetailsDialog({ open, setOpen, productDetails }) {
   const [reviewMsg, setReviewMsg] = useState("");
   const [rating, setRating] = useState(0);
   const [selectedVariation, setSelectedVariation] = useState(null);
   const [isDescriptionExpanded, setIsDescriptionExpanded] = useState(false);
-  const [isWishlisted, setIsWishlisted] = useState(false);
 
   const dispatch = useDispatch();
-  const { user } = useSelector((state) => state.auth);
+  const navigate = useNavigate();
+  const { user, isAuthenticated } = useSelector((state) => state.auth);
   const { cartItems } = useSelector((state) => state.shopCart);
   const { reviews } = useSelector((state) => state.shopReview);
+  const wishlistState = useSelector((state) => state.shopWishlist);
+  const wishlistItems = wishlistState?.items || [];
   const { toast } = useToast();
+
+  // Check if product is in wishlist
+  const isWishlisted = wishlistItems.some(
+    (item) => item._id === productDetails?._id
+  );
 
   // Handle image display logic
   const displayedImage = selectedVariation?.image || productDetails?.image;
@@ -86,6 +101,17 @@ function ProductDetailsDialog({ open, setOpen, productDetails }) {
   }
 
   function handleAddToCart(productId, totalStock) {
+    // Check if user is authenticated
+    if (!isAuthenticated || !user) {
+      toast({
+        title: "Login Required",
+        description: "Please login to add items to your cart",
+        variant: "destructive",
+      });
+      navigate('/auth/login');
+      return;
+    }
+
     let getCartItems = cartItems.items || [];
 
     if (getCartItems.length) {
@@ -118,11 +144,44 @@ function ProductDetailsDialog({ open, setOpen, productDetails }) {
     });
   }
 
-  function handleWishlistToggle() {
-    setIsWishlisted(!isWishlisted);
-    toast({ 
-      title: isWishlisted ? "Removed from wishlist" : "Added to wishlist" 
-    });
+  async function handleWishlistToggle() {
+    // Check if user is authenticated
+    if (!isAuthenticated || !user) {
+      toast({
+        title: "Login Required",
+        description: "Please login to add items to your wishlist",
+        variant: "destructive",
+      });
+      navigate('/auth/login');
+      return;
+    }
+
+    try {
+      if (isWishlisted) {
+        await dispatch(removeFromWishlist({ 
+          userId: user.id, 
+          productId: productDetails._id 
+        }));
+        toast({
+          title: "Removed from wishlist",
+        });
+      } else {
+        await dispatch(addToWishlist({ 
+          userId: user.id, 
+          productId: productDetails._id 
+        }));
+        toast({
+          title: "Added to wishlist",
+        });
+      }
+
+      dispatch(fetchWishlist(user.id));
+    } catch (err) {
+      toast({
+        title: "An error occurred",
+        variant: "destructive",
+      });
+    }
   }
 
   function handleDialogClose() {
@@ -135,6 +194,17 @@ function ProductDetailsDialog({ open, setOpen, productDetails }) {
   }
 
   function handleAddReview() {
+    // Check if user is authenticated
+    if (!isAuthenticated || !user) {
+      toast({
+        title: "Login Required",
+        description: "Please login to write a review",
+        variant: "destructive",
+      });
+      navigate('/auth/login');
+      return;
+    }
+
     dispatch(
       addReview({
         productId: productDetails?._id,
@@ -271,7 +341,7 @@ function ProductDetailsDialog({ open, setOpen, productDetails }) {
           {/* Add to Cart Button */}
           <div className="mb-4">
             {productDetails?.totalStock === 0 ? (
-              <Button className="w-full opacity-60 cursor-not-allowed" size="lg">
+              <Button className="w-full opacity-60 cursor-not-allowed" size="lg" disabled>
                 Out of Stock
               </Button>
             ) : (
@@ -341,16 +411,17 @@ function ProductDetailsDialog({ open, setOpen, productDetails }) {
                 name="reviewMsg"
                 value={reviewMsg}
                 onChange={(event) => setReviewMsg(event.target.value)}
-                placeholder="Write a review..."
+                placeholder={isAuthenticated ? "Write a review..." : "Login to write a review..."}
                 className="text-sm sm:text-base"
+                disabled={!isAuthenticated}
               />
               <Button
                 onClick={handleAddReview}
-                disabled={reviewMsg.trim() === ""}
+                disabled={reviewMsg.trim() === "" || !isAuthenticated}
                 className="w-full sm:w-auto"
                 size="sm"
               >
-                Submit
+                {isAuthenticated ? "Submit" : "Login to Review"}
               </Button>
             </div>
           </div>

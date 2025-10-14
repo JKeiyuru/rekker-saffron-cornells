@@ -1,3 +1,4 @@
+/* eslint-disable no-unused-vars */
 // client/src/pages/admin-view/products.jsx
 import ProductImageUpload from "@/components/admin-view/image-upload";
 import AdminProductTile from "@/components/admin-view/product-tile";
@@ -21,12 +22,18 @@ import { Fragment, useEffect, useState } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import VariationUploader from "@/components/admin-view/variation-uploader";
 import { Separator } from "@/components/ui/separator";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Badge } from "@/components/ui/badge";
+import BulkImport from "@/components/admin-view/bulk-import";
+import { Upload } from "lucide-react";
 
 const initialFormData = {
+  brand: "",
   image: null,
   title: "",
   description: "",
   category: "",
+  subcategory: "",
   price: "",
   salePrice: "",
   totalStock: "",
@@ -41,6 +48,8 @@ function AdminProducts() {
   const [uploadedImageUrl, setUploadedImageUrl] = useState("");
   const [imageLoadingState, setImageLoadingState] = useState(false);
   const [currentEditedId, setCurrentEditedId] = useState(null);
+  const [activeTab, setActiveTab] = useState("all");
+  const [showBulkImport, setShowBulkImport] = useState(false);
 
   const { productList, isLoading } = useSelector((state) => state.adminProducts);
   const dispatch = useDispatch();
@@ -84,7 +93,6 @@ function AdminProducts() {
       variations: formData.variations?.map(v => ({
         image: v.image,
         label: v.label
-        // Don't send _id for new variations, let MongoDB generate it
       })) || []
     };
 
@@ -161,8 +169,14 @@ function AdminProducts() {
   }
 
   function isFormValid() {
-    // Check required fields
-    const requiredFields = ['title', 'category', 'price', 'totalStock'];
+    // Check required fields based on brand
+    const requiredFields = ['brand', 'title', 'category', 'price', 'totalStock'];
+    
+    // Add subcategory as required for Saffron and Cornells
+    if (formData.brand === 'saffron' || formData.brand === 'cornells') {
+      requiredFields.push('subcategory');
+    }
+
     const areRequiredFieldsFilled = requiredFields.every(field => {
       const value = formData[field];
       return value !== "" && value !== null && value !== undefined;
@@ -199,22 +213,101 @@ function AdminProducts() {
     dispatch(fetchAllProducts());
   }, [dispatch]);
 
+  // Filter products by brand
+  const filteredProducts = activeTab === "all" 
+    ? productList 
+    : productList?.filter(product => product.brand === activeTab);
+
+  // Count products by brand
+  const productCounts = {
+    all: productList?.length || 0,
+    rekker: productList?.filter(p => p.brand === "rekker")?.length || 0,
+    saffron: productList?.filter(p => p.brand === "saffron")?.length || 0,
+    cornells: productList?.filter(p => p.brand === "cornells")?.length || 0,
+  };
+
   const isEditMode = !!currentEditedId;
 
   return (
     <Fragment>
+      {/* Bulk Import Modal */}
+      {showBulkImport && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg max-w-4xl w-full max-h-[90vh] overflow-auto">
+            <div className="p-6">
+              <div className="flex justify-between items-center mb-4">
+                <h2 className="text-2xl font-bold">Bulk Product Import</h2>
+                <Button 
+                  variant="ghost" 
+                  onClick={() => setShowBulkImport(false)}
+                  className="h-8 w-8 p-0"
+                >
+                  ×
+                </Button>
+              </div>
+              <BulkImport 
+                onImportComplete={() => {
+                  setShowBulkImport(false);
+                  dispatch(fetchAllProducts()); // Refresh the list
+                }} 
+              />
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="mb-5 w-full flex justify-between items-center">
         <div>
-          <h1 className="text-3xl font-bold">Products</h1>
+          <h1 className="text-3xl font-bold">Products Management</h1>
           <p className="text-gray-600 mt-1">
-            Manage your product inventory and variations
+            Manage products across Rekker, Saffron, and Cornells brands
           </p>
         </div>
-        <Button onClick={handleAddNewProduct} className="gap-2">
-          <span>+</span>
-          Add New Product
-        </Button>
+        <div className="flex gap-2">
+          <Button 
+            onClick={() => setShowBulkImport(true)} 
+            variant="outline" 
+            className="gap-2"
+          >
+            <Upload className="w-4 h-4" />
+            Bulk Import
+          </Button>
+          <Button onClick={handleAddNewProduct} className="gap-2">
+            <span>+</span>
+            Add New Product
+          </Button>
+        </div>
       </div>
+
+      {/* Brand Tabs */}
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="mb-6">
+        <TabsList className="grid w-full grid-cols-4 max-w-[600px]">
+          <TabsTrigger value="all" className="relative">
+            All Products
+            <Badge variant="secondary" className="ml-2 bg-gray-600 text-white">
+              {productCounts.all}
+            </Badge>
+          </TabsTrigger>
+          <TabsTrigger value="rekker" className="relative">
+            Rekker
+            <Badge variant="secondary" className="ml-2 bg-blue-600 text-white">
+              {productCounts.rekker}
+            </Badge>
+          </TabsTrigger>
+          <TabsTrigger value="saffron" className="relative">
+            Saffron
+            <Badge variant="secondary" className="ml-2 bg-green-600 text-white">
+              {productCounts.saffron}
+            </Badge>
+          </TabsTrigger>
+          <TabsTrigger value="cornells" className="relative">
+            Cornells
+            <Badge variant="secondary" className="ml-2 bg-purple-600 text-white">
+              {productCounts.cornells}
+            </Badge>
+          </TabsTrigger>
+        </TabsList>
+      </Tabs>
 
       {isLoading ? (
         <div className="grid gap-4 md:grid-cols-3 lg:grid-cols-4">
@@ -234,9 +327,9 @@ function AdminProducts() {
             </div>
           ))}
         </div>
-      ) : productList && productList.length > 0 ? (
+      ) : filteredProducts && filteredProducts.length > 0 ? (
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-          {productList.map((productItem) => (
+          {filteredProducts.map((productItem) => (
             <AdminProductTile
               key={productItem._id}
               product={productItem}
@@ -266,13 +359,21 @@ function AdminProducts() {
                 />
               </svg>
             </div>
-            <h3 className="text-lg font-medium text-gray-900 mb-2">No products yet</h3>
+            <h3 className="text-lg font-medium text-gray-900 mb-2">
+              No {activeTab !== "all" ? activeTab : ""} products yet
+            </h3>
             <p className="text-gray-600 mb-6">
               Get started by adding your first product to the inventory.
             </p>
-            <Button onClick={handleAddNewProduct}>
-              Add Your First Product
-            </Button>
+            <div className="flex gap-2 justify-center">
+              <Button onClick={() => setShowBulkImport(true)} variant="outline">
+                <Upload className="w-4 h-4 mr-2" />
+                Bulk Import
+              </Button>
+              <Button onClick={handleAddNewProduct}>
+                Add Single Product
+              </Button>
+            </div>
           </div>
         </div>
       )}
@@ -298,6 +399,21 @@ function AdminProducts() {
           </SheetHeader>
 
           <div className="space-y-6 py-6">
+            {/* Brand Info Banner */}
+            {formData.brand && (
+              <div className={`p-4 rounded-lg border-2 ${
+                formData.brand === 'rekker' ? 'bg-blue-50 border-blue-200' :
+                formData.brand === 'saffron' ? 'bg-green-50 border-green-200' :
+                'bg-purple-50 border-purple-200'
+              }`}>
+                <p className="font-medium">
+                  {formData.brand === 'rekker' && '🏢 Rekker Products'}
+                  {formData.brand === 'saffron' && '🧼 Saffron Products (Manufactured by Rekker)'}
+                  {formData.brand === 'cornells' && '💄 Cornells Products (Distributed by Rekker)'}
+                </p>
+              </div>
+            )}
+
             {/* Main Product Image Upload */}
             <div>
               <h3 className="text-lg font-medium mb-3">Main Product Image</h3>
@@ -308,7 +424,7 @@ function AdminProducts() {
                 setUploadedImageUrl={setUploadedImageUrl}
                 imageLoadingState={imageLoadingState}
                 setImageLoadingState={setImageLoadingState}
-                isEditMode={false} // Allow image upload in edit mode
+                isEditMode={false}
                 isCustomStyling={true}
               />
               <p className="text-sm text-gray-600 mt-2">
@@ -346,8 +462,12 @@ function AdminProducts() {
               <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
                 <h4 className="font-medium text-yellow-800 mb-2">Form Requirements:</h4>
                 <ul className="text-sm text-yellow-700 space-y-1">
+                  <li>• Brand is required</li>
                   <li>• Title is required</li>
                   <li>• Category is required</li>
+                  {(formData.brand === 'saffron' || formData.brand === 'cornells') && (
+                    <li>• Subcategory is required for {formData.brand}</li>
+                  )}
                   <li>• Price must be a valid number ≥ 0</li>
                   <li>• Stock must be a valid number ≥ 0</li>
                   <li>• At least one image (main image or variation) is required</li>

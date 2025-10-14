@@ -1,3 +1,4 @@
+// client/src/config/index.js - Rekker Configuration
 export const registerFormControls = [
   {
     name: "userName",
@@ -39,13 +40,158 @@ export const loginFormControls = [
   },
 ];
 
+// Brand Options
+export const brandOptions = [
+  { id: "rekker", label: "Rekker" },
+  { id: "saffron", label: "Saffron" },
+  { id: "cornells", label: "Cornells" },
+];
+
+// Rekker Categories
+export const rekkerCategories = [
+  { id: "stationery", label: "Stationery" },
+  { id: "bags-suitcases", label: "School Bags & Suitcases" },
+  { id: "toys", label: "Toys" },
+  { id: "kitchenware", label: "Kitchenware" },
+  { id: "padlocks", label: "Padlocks" },
+  { id: "stuffed-toys", label: "Teddy Bears & Stuffed Toys" },
+  { id: "party-items", label: "Party Items" },
+  { id: "educational", label: "Educational Items" },
+];
+
+// Saffron Categories & Subcategories
+export const saffronCategories = [
+  { 
+    id: "home-care-hygiene", 
+    label: "Home Care & Hygiene",
+    subcategories: [
+      { id: "dish-wash", label: "Dish Wash" },
+      { id: "hand-wash", label: "Hand Wash" },
+      { id: "liquid-detergent", label: "Liquid Detergent" },
+      { id: "surface-cleaner", label: "Surface Cleaner" },
+    ]
+  },
+  { 
+    id: "beauty-body-care", 
+    label: "Beauty & Body Care",
+    subcategories: [
+      { id: "shower-gel", label: "Shower Gel" },
+      { id: "body-lotion", label: "Body Lotion" },
+      { id: "after-shave", label: "After-Shave" },
+      { id: "hair-care", label: "Hair Care Products" },
+    ]
+  },
+];
+
+// Cornells Categories (Collections)
+export const cornellsCategories = [
+  { 
+    id: "super-foods", 
+    label: "Super Foods",
+    subcategories: [
+      { id: "shampoo", label: "Shampoo" },
+      { id: "conditioner", label: "Conditioner" },
+      { id: "hair-mask", label: "Hair Mask" },
+      { id: "hair-serum", label: "Hair Serum" },
+      { id: "shower-gel", label: "Shower Gel" },
+      { id: "body-lotion", label: "Body Lotion" },
+      { id: "body-scrub", label: "Body Scrub" },
+      { id: "facial-scrub", label: "Facial Scrub" },
+      { id: "facial-mask", label: "Facial Mask" },
+      { id: "face-wash", label: "Face Wash" },
+      { id: "facial-cream", label: "Facial Cream" },
+      { id: "baby-care", label: "Baby Care" },
+      { id: "gift-sets", label: "Gift Sets" },
+    ]
+  },
+  { 
+    id: "dark-beautiful", 
+    label: "Dark & Beautiful",
+    subcategories: [
+      { id: "shampoo", label: "Shampoo" },
+      { id: "conditioner", label: "Conditioner" },
+      { id: "styling-products", label: "Styling Products" },
+      { id: "hair-treatments", label: "Hair Treatments" },
+      { id: "oils-serums", label: "Oils & Serums" },
+      { id: "kids-hair-care", label: "Kids Hair Care" },
+    ]
+  },
+  { 
+    id: "bold-beautiful", 
+    label: "Bold & Beautiful",
+    subcategories: [
+      { id: "body-cream", label: "Body Cream" },
+      { id: "body-lotion", label: "Body Lotion" },
+      { id: "shower-gel", label: "Shower Gel" },
+      { id: "body-scrub", label: "Body Scrub" },
+      { id: "shower-scrub", label: "Shower Scrub" },
+      { id: "hand-body-lotion", label: "Hand & Body Lotion" },
+      { id: "body-butter", label: "Body Butter" },
+      { id: "body-oil", label: "Body Oil" },
+      { id: "moisturizer", label: "Moisturizer" },
+      { id: "sugar-scrub", label: "Sugar Scrub" },
+      { id: "facial-care", label: "Facial Care" },
+      { id: "serums", label: "Serums" },
+      { id: "deodorant", label: "Anti-Perspirant" },
+      { id: "day-night-cream", label: "Day & Night Cream" },
+    ]
+  },
+  { 
+    id: "cute-pretty", 
+    label: "Cute & Pretty",
+    subcategories: [
+      { id: "baby-wash-shampoo", label: "Baby Wash & Shampoo" },
+      { id: "baby-lotion", label: "Baby Lotion" },
+      { id: "baby-oil", label: "Baby Oil" },
+      { id: "baby-cream", label: "Baby Cream" },
+      { id: "nappy-rash-cream", label: "Nappy Rash Cream" },
+      { id: "kids-shampoo", label: "Kids Shampoo" },
+      { id: "kids-conditioner", label: "Kids Conditioner" },
+      { id: "kids-styling", label: "Kids Styling Products" },
+      { id: "kids-treatments", label: "Kids Hair Treatments" },
+    ]
+  },
+];
+
+// Get categories based on brand
+export const getCategoriesByBrand = (brand) => {
+  switch(brand) {
+    case "rekker":
+      return rekkerCategories;
+    case "saffron":
+      return saffronCategories;
+    case "cornells":
+      return cornellsCategories;
+    default:
+      return [];
+  }
+};
+
+// Get subcategories based on brand and category
+export const getSubcategories = (brand, category) => {
+  if (brand === "rekker") return [];
+  
+  const categories = brand === "saffron" ? saffronCategories : cornellsCategories;
+  const foundCategory = categories.find(cat => cat.id === category);
+  return foundCategory?.subcategories || [];
+};
+
+// Add Product Form Elements
 export const addProductFormElements = [
+  {
+    label: "Brand",
+    name: "brand",
+    componentType: "select",
+    options: brandOptions,
+    required: true,
+  },
   {
     label: "Title",
     name: "title",
     componentType: "input",
     type: "text",
     placeholder: "Enter product title",
+    required: true,
   },
   {
     label: "Description",
@@ -56,27 +202,24 @@ export const addProductFormElements = [
   {
     label: "Category",
     name: "category",
-    componentType: "select",
-    options: [
-      { id: "home", label: "Home" },
-      { id: "under-100", label: "Under 100/" },
-      { id: "educational-toys", label: "Educational Toys" },
-      { id: "pretend-play", label: "Pretend Play & Role Play" },
-      { id: "action-outdoor", label: "Action & Outdoor" },
-      { id: "card-board-games", label: "Card & Board Games" },
-      { id: "party-supplies", label: "Party Supplies" },
-      { id: "stationery-school", label: "Stationery & School" },
-      { id: "fashion-accessories", label: "Fashion & Accessories" },
-      { id: "home-decor", label: "Home & Decor" },
-    ],
+    componentType: "select-dynamic",
+    options: [], // Will be populated based on brand selection
+    required: true,
   },
- 
+  {
+    label: "Subcategory",
+    name: "subcategory",
+    componentType: "select-dynamic",
+    options: [], // Will be populated based on category selection
+    showWhen: ["saffron", "cornells"], // Only show for these brands
+  },
   {
     label: "Price",
     name: "price",
     componentType: "input",
     type: "number",
-    placeholder: "Enter product price",
+    placeholder: "Enter product price (KES)",
+    required: true,
   },
   {
     label: "Sale Price",
@@ -91,9 +234,11 @@ export const addProductFormElements = [
     componentType: "input",
     type: "number",
     placeholder: "Enter total stock",
+    required: true,
   },
 ];
 
+// Shopping View Header Menu Items
 export const shoppingViewHeaderMenuItems = [
   {
     id: "home",
@@ -101,88 +246,137 @@ export const shoppingViewHeaderMenuItems = [
     path: "/shop/home",
   },
   {
-    id: "under-100",
-    label: "Under 100/",
-    path: "/shop/listing",
+    id: "about",
+    label: "About",
+    path: "/shop/about",
   },
   {
-    id: "educational-toys",
-    label: "Educational Toys",
-    path: "/shop/listing",
+    id: "services",
+    label: "Services",
+    path: "/shop/services",
   },
   {
-    id: "pretend-play",
-    label: "Pretend Play & Role Play",
-    path: "/shop/listing",
+    id: "distributors",
+    label: "Distributors",
+    path: "/shop/distributors",
   },
   {
-    id: "action-outdoor",
-    label: "Action & Outdoor",
-    path: "/shop/listing",
-  },
-  {
-    id: "card-board-games",
-    label: "Card & Board Games",
-    path: "/shop/listing",
-  },
-  {
-    id: "party-supplies",
-    label: "Party Supplies",
-    path: "/shop/listing",
-  },
-  {
-    id: "stationery-school",
-    label: "Stationery & School",
-    path: "/shop/listing",
-  },
-  {
-    id: "fashion-accessories",
-    label: "Fashion & Accessories",
-    path: "/shop/listing",
-  },
-  {
-    id: "home-decor",
-    label: "Home & Decor",
-    path: "/shop/listing",
-  },
-  {
-    id: "search",
-    label: "Search",
-    path: "/shop/search",
+    id: "contact",
+    label: "Contact",
+    path: "/shop/contact",
   },
 ];
 
+// Category Options Map (for display)
 export const categoryOptionsMap = {
-  home: "Home",
-  "under-100": "Under 100/",
-  "educational-toys": "Educational Toys",
-  "pretend-play": "Pretend Play & Role Play",
-  "action-outdoor": "Action & Outdoor",
-  "card-board-games": "Card & Board Games",
-  "party-supplies": "Party Supplies",
-  "stationery-school": "Stationery & School",
-  "fashion-accessories": "Fashion & Accessories",
-  "home-decor": "Home & Decor",
+  // Rekker
+  "stationery": "Stationery",
+  "bags-suitcases": "School Bags & Suitcases",
+  "toys": "Toys",
+  "kitchenware": "Kitchenware",
+  "padlocks": "Padlocks",
+  "stuffed-toys": "Teddy Bears & Stuffed Toys",
+  "party-items": "Party Items",
+  "educational": "Educational Items",
+  
+  // Saffron
+  "home-care-hygiene": "Home Care & Hygiene",
+  "beauty-body-care": "Beauty & Body Care",
+  
+  // Cornells
+  "super-foods": "Super Foods",
+  "dark-beautiful": "Dark & Beautiful",
+  "bold-beautiful": "Bold & Beautiful",
+  "cute-pretty": "Cute & Pretty",
 };
 
+// Subcategory Options Map
+export const subcategoryOptionsMap = {
+  // Saffron - Home Care
+  "dish-wash": "Dish Wash",
+  "hand-wash": "Hand Wash",
+  "liquid-detergent": "Liquid Detergent",
+  "surface-cleaner": "Surface Cleaner",
+  
+  // Saffron - Beauty & Body
+  "shower-gel": "Shower Gel",
+  "body-lotion": "Body Lotion",
+  "after-shave": "After-Shave",
+  "hair-care": "Hair Care Products",
+  
+  // Cornells - Super Foods
+  "shampoo": "Shampoo",
+  "conditioner": "Conditioner",
+  "hair-mask": "Hair Mask",
+  "hair-serum": "Hair Serum",
+  "body-scrub": "Body Scrub",
+  "facial-scrub": "Facial Scrub",
+  "facial-mask": "Facial Mask",
+  "face-wash": "Face Wash",
+  "facial-cream": "Facial Cream",
+  "baby-care": "Baby Care",
+  "gift-sets": "Gift Sets",
+  
+  // Cornells - Dark & Beautiful
+  "styling-products": "Styling Products",
+  "hair-treatments": "Hair Treatments",
+  "oils-serums": "Oils & Serums",
+  "kids-hair-care": "Kids Hair Care",
+  
+  // Cornells - Bold & Beautiful
+  "body-cream": "Body Cream",
+  "shower-scrub": "Shower Scrub",
+  "hand-body-lotion": "Hand & Body Lotion",
+  "body-butter": "Body Butter",
+  "body-oil": "Body Oil",
+  "moisturizer": "Moisturizer",
+  "sugar-scrub": "Sugar Scrub",
+  "facial-care": "Facial Care",
+  "serums": "Serums",
+  "deodorant": "Anti-Perspirant",
+  "day-night-cream": "Day & Night Cream",
+  
+  // Cornells - Cute & Pretty
+  "baby-wash-shampoo": "Baby Wash & Shampoo",
+  "baby-lotion": "Baby Lotion",
+  "baby-oil": "Baby Oil",
+  "baby-cream": "Baby Cream",
+  "nappy-rash-cream": "Nappy Rash Cream",
+  "kids-shampoo": "Kids Shampoo",
+  "kids-conditioner": "Kids Conditioner",
+  "kids-styling": "Kids Styling Products",
+  "kids-treatments": "Kids Hair Treatments",
+};
 
+// Brand Display Map
+export const brandOptionsMap = {
+  "rekker": "Rekker",
+  "saffron": "Saffron",
+  "cornells": "Cornells",
+};
 
+// Filter Options
 export const filterOptions = {
+  brand: brandOptions,
   category: [
-    { id: "home", label: "Home" },
-    { id: "under-100", label: "Under 100/" },
-    { id: "educational-toys", label: "Educational Toys" },
-    { id: "pretend-play", label: "Pretend Play & Role Play" },
-    { id: "action-outdoor", label: "Action & Outdoor" },
-    { id: "card-board-games", label: "Card & Board Games" },
-    { id: "party-supplies", label: "Party Supplies" },
-    { id: "stationery-school", label: "Stationery & School" },
-    { id: "fashion-accessories", label: "Fashion & Accessories" },
-    { id: "home-decor", label: "Home & Decor" },
+    // Rekker Categories
+    ...rekkerCategories,
+    // Saffron Categories
+    ...saffronCategories.map(cat => ({ id: cat.id, label: cat.label })),
+    // Cornells Categories
+    ...cornellsCategories.map(cat => ({ id: cat.id, label: cat.label })),
   ],
-
+  subcategory: [
+    // All Saffron Subcategories
+    ...saffronCategories.flatMap(cat => cat.subcategories),
+    // All Cornells Subcategories
+    ...cornellsCategories.flatMap(cat => cat.subcategories),
+  ].filter((subcat, index, self) => 
+    index === self.findIndex((s) => s.id === subcat.id)
+  ), // Remove duplicates
 };
 
+// Sort Options
 export const sortOptions = [
   { id: "price-lowtohigh", label: "Price: Low to High" },
   { id: "price-hightolow", label: "Price: High to Low" },
@@ -190,6 +384,7 @@ export const sortOptions = [
   { id: "title-ztoa", label: "Title: Z to A" },
 ];
 
+// Address Form Controls
 export const addressFormControls = [
   {
     label: "Address",
@@ -226,3 +421,18 @@ export const addressFormControls = [
     placeholder: "Enter any additional notes",
   },
 ];
+
+// Helper function to get full product category display
+export const getProductCategoryDisplay = (brand, category, subcategory) => {
+  let display = brandOptionsMap[brand] || brand;
+  
+  if (category) {
+    display += ` - ${categoryOptionsMap[category] || category}`;
+  }
+  
+  if (subcategory) {
+    display += ` - ${subcategoryOptionsMap[subcategory] || subcategory}`;
+  }
+  
+  return display;
+};

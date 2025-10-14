@@ -3,6 +3,7 @@
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardFooter } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { brandOptionsMap, categoryOptionsMap, subcategoryOptionsMap } from "@/config";
 
 function AdminProductTile({
   product,
@@ -18,10 +19,12 @@ function AdminProductTile({
     
     // Create a deep copy of the product data for editing
     const productData = {
+      brand: product.brand || "",
       image: product.image || "",
       title: product.title || "",
       description: product.description || "",
       category: product.category || "",
+      subcategory: product.subcategory || "",
       price: product.price || "",
       salePrice: product.salePrice || "",
       totalStock: product.totalStock || "",
@@ -29,13 +32,12 @@ function AdminProductTile({
       variations: product.variations ? product.variations.map(v => ({
         image: v.image,
         label: v.label,
-        _id: v._id // Include the MongoDB _id if it exists
+        _id: v._id
       })) : []
     };
     
     console.log("Setting form data for edit:", productData);
     
-    // Use the onEdit prop if provided, otherwise use the legacy method
     if (onEdit) {
       onEdit(productData);
     } else {
@@ -52,6 +54,24 @@ function AdminProductTile({
   const hasVariations = product?.variations && product.variations.length > 0;
   const variationCount = hasVariations ? product.variations.length : 0;
 
+  // Get brand display name
+  const brandDisplay = brandOptionsMap[product?.brand] || product?.brand || "Unknown";
+  
+  // Get brand color
+  const getBrandColor = () => {
+    switch(product?.brand) {
+      case 'rekker': return 'bg-blue-500';
+      case 'saffron': return 'bg-green-500';
+      case 'cornells': return 'bg-purple-500';
+      default: return 'bg-gray-500';
+    }
+  };
+
+  // Get category and subcategory display
+  const categoryDisplay = categoryOptionsMap[product?.category] || product?.category;
+  const subcategoryDisplay = product?.subcategory ? 
+    (subcategoryOptionsMap[product.subcategory] || product.subcategory) : null;
+
   return (
     <Card className="w-full max-w-sm mx-auto hover:shadow-lg transition-shadow duration-200">
       <div className="relative">
@@ -61,8 +81,8 @@ function AdminProductTile({
             alt={product?.title || "Product"}
             className="w-full h-[300px] object-cover rounded-t-lg"
             onError={(e) => {
-              // Fallback image if the main image fails to load
-              e.target.src = "/api/placeholder/300/300";
+              // Use a working placeholder image instead of /api/placeholder
+              e.target.src = "https://images.unsplash.com/photo-1526947425960-945c6e72858f?w=400&h=400&fit=crop";
               e.target.alt = "Image not available";
             }}
           />
@@ -72,11 +92,18 @@ function AdminProductTile({
           </div>
         )}
         
+        {/* Brand badge */}
+        <Badge 
+          className={`absolute top-2 left-2 ${getBrandColor()} text-white hover:${getBrandColor()}/80`}
+        >
+          {brandDisplay}
+        </Badge>
+
         {/* Variation count badge */}
         {hasVariations && (
           <Badge 
             variant="secondary" 
-            className="absolute top-2 left-2 bg-black/70 text-white hover:bg-black/80"
+            className="absolute top-2 right-2 bg-black/70 text-white hover:bg-black/80"
           >
             {variationCount} variation{variationCount > 1 ? 's' : ''}
           </Badge>
@@ -86,7 +113,7 @@ function AdminProductTile({
         {product?.salePrice > 0 && (
           <Badge 
             variant="destructive" 
-            className="absolute top-2 right-2"
+            className="absolute bottom-2 right-2"
           >
             Sale
           </Badge>
@@ -106,11 +133,11 @@ function AdminProductTile({
                 product?.salePrice > 0 ? "line-through text-gray-500" : "text-primary"
               }`}
             >
-              KES{product?.price}/
+              KES {product?.price}
             </span>
             {product?.salePrice > 0 && (
               <span className="text-lg font-bold text-red-600">
-                {product?.salePrice}/
+                KES {product?.salePrice}
               </span>
             )}
           </div>
@@ -119,11 +146,18 @@ function AdminProductTile({
           </div>
         </div>
 
-        {/* Category */}
-        <div className="mb-3">
-          <Badge variant="outline" className="text-xs">
-            {product?.category}
-          </Badge>
+        {/* Category and Subcategory */}
+        <div className="mb-3 space-y-1">
+          <div className="flex flex-wrap gap-2 items-center">
+            <Badge variant="outline" className="text-xs">
+              {categoryDisplay}
+            </Badge>
+            {subcategoryDisplay && (
+              <Badge variant="outline" className="text-xs bg-gray-50">
+                {subcategoryDisplay}
+              </Badge>
+            )}
+          </div>
         </div>
         
         {/* Variations preview */}
@@ -139,7 +173,8 @@ function AdminProductTile({
                     className="w-10 h-10 object-cover rounded border-2 border-gray-200 hover:border-primary transition-colors"
                     title={variation.label}
                     onError={(e) => {
-                      e.target.src = "/api/placeholder/40/40";
+                      // Use a working placeholder image instead of /api/placeholder
+                      e.target.src = "https://images.unsplash.com/photo-1526947425960-945c6e72858f?w=400&h=400&fit=crop";
                       e.target.alt = "Variation image not available";
                     }}
                   />

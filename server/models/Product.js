@@ -1,4 +1,4 @@
-// server/models/Product.js
+// server/models/Product.js - Rekker Product Model
 const mongoose = require("mongoose");
 
 const VariationSchema = new mongoose.Schema({
@@ -35,10 +35,27 @@ const ProductSchema = new mongoose.Schema(
       trim: true,
       default: ""
     },
+    brand: {
+      type: String,
+      required: [true, "Brand is required"],
+      enum: {
+        values: ["rekker", "saffron", "cornells"],
+        message: "Brand must be either rekker, saffron, or cornells"
+      },
+      trim: true,
+      lowercase: true
+    },
     category: {
       type: String,
       required: [true, "Product category is required"],
-      trim: true
+      trim: true,
+      lowercase: true
+    },
+    subcategory: {
+      type: String,
+      trim: true,
+      lowercase: true,
+      default: null
     },
     price: {
       type: Number,
@@ -59,7 +76,8 @@ const ProductSchema = new mongoose.Schema(
     totalStock: {
       type: Number,
       required: [true, "Total stock is required"],
-      min: [0, "Stock cannot be negative"]
+      min: [0, "Stock cannot be negative"],
+      default: 0
     },
     averageReview: {
       type: Number,
@@ -78,7 +96,11 @@ const ProductSchema = new mongoose.Schema(
       transform: function(doc, ret) {
         delete ret.__v;
         return ret;
-      }
+      },
+      virtuals: true
+    },
+    toObject: { 
+      virtuals: true 
     }
   }
 );
@@ -92,6 +114,12 @@ ProductSchema.pre('validate', function(next) {
   if (!hasMainImage && !hasVariations) {
     return next(new Error('Product must have either a main image or at least one variation'));
   }
+  
+  // Validate subcategory requirement for Saffron and Cornells
+  if ((this.brand === 'saffron' || this.brand === 'cornells') && !this.subcategory) {
+    return next(new Error(`Subcategory is required for ${this.brand} products`));
+  }
+  
   next();
 });
 
@@ -104,9 +132,68 @@ ProductSchema.virtual('displayImage').get(function() {
   return null;
 });
 
-// Indexes
-ProductSchema.index({ category: 1, title: 1 });
+// Virtual for brand display name
+ProductSchema.virtual('brandDisplay').get(function() {
+  const brandMap = {
+    'rekker': 'Rekker',
+    'saffron': 'Saffron',
+    'cornells': 'Cornells'
+  };
+  return brandMap[this.brand] || this.brand;
+});
+
+// Indexes for better query performance
+ProductSchema.index({ brand: 1, category: 1 });
+ProductSchema.index({ brand: 1, category: 1, subcategory: 1 });
 ProductSchema.index({ price: 1 });
 ProductSchema.index({ createdAt: -1 });
+ProductSchema.index({ title: 'text', description: 'text' });
+
+// Static method to get products by brand
+ProductSchema.statics.findByBrand = function(brand) {
+  return this.find({ brand: brand.toLowerCase() });
+};
+
+// Static method to get products by brand and category
+ProductSchema.statics.findByBrandAndCategory = function(brand, category) {
+  return this.find({ 
+    brand: brand.toLowerCase(), 
+    category: category.toLowerCase() 
+  });
+};
+
+// Static method to get products by brand, category, and subcategory
+ProductSchema.statics.findByFullCategory = function(brand, category, subcategory) {
+  const query = { 
+    brand: brand.toLowerCase(), 
+    category: category.toLowerCase()
+  };
+  
+  if (subcategory) {
+    query.subcategory = subcategory.toLowerCase();
+  }
+  
+  return this.find(query);
+};
+
+// Instance method to check if product is on sale
+ProductSchema.methods.isOnSale = function() {
+  return this.salePrice > 0 && this.salePrice < this.price;
+};
+
+// Instance method to get effective price
+ProductSchema.methods.getEffectivePrice = function() {
+  return this.isOnSale() ? this.salePrice : this.price;
+};
+
+// Instance method to check if product is in stock
+ProductSchema.methods.isInStock = function() {
+  return this.totalStock > 0;
+};
+
+// Instance method to check if product is low stock
+ProductSchema.methods.isLowStock = function(threshold = 10) {
+  return this.totalStock > 0 && this.totalStock <= threshold;
+};
 
 module.exports = mongoose.model("Product", ProductSchema);

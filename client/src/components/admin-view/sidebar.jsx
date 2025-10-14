@@ -1,8 +1,13 @@
+/* eslint-disable no-unused-vars */
+/* eslint-disable react/prop-types */
+// client/src/components/admin-view/sidebar.jsx
 import {
   BadgeCheck,
   ChartNoAxesCombined,
   LayoutDashboard,
   ShoppingBasket,
+  Package,
+  Users,
 } from "lucide-react";
 import { Fragment } from "react";
 import { useNavigate } from "react-router-dom";
@@ -62,7 +67,10 @@ function AdminSideBar({ open, setOpen }) {
             <SheetHeader className="border-b">
               <SheetTitle className="flex gap-2 mt-5 mb-5">
                 <ChartNoAxesCombined size={30} />
-                <h1 className="text-2xl font-extrabold">Admin Panel</h1>
+                <div>
+                  <h1 className="text-2xl font-extrabold">Rekker Admin</h1>
+                  <p className="text-xs text-muted-foreground font-normal">Multi-Brand Management</p>
+                </div>
               </SheetTitle>
             </SheetHeader>
             <MenuItems setOpen={setOpen} />
@@ -72,12 +80,34 @@ function AdminSideBar({ open, setOpen }) {
       <aside className="hidden w-64 flex-col border-r bg-background p-6 lg:flex">
         <div
           onClick={() => navigate("/admin/dashboard")}
-          className="flex cursor-pointer items-center gap-2"
+          className="flex cursor-pointer items-center gap-2 mb-2"
         >
           <ChartNoAxesCombined size={30} />
-          <h1 className="text-2xl font-extrabold">Admin Panel</h1>
+          <div>
+            <h1 className="text-2xl font-extrabold">Rekker Admin</h1>
+            <p className="text-xs text-muted-foreground">Multi-Brand Management</p>
+          </div>
         </div>
         <MenuItems />
+        
+        {/* Brand Info */}
+        <div className="mt-auto pt-6 border-t">
+          <p className="text-xs font-semibold text-muted-foreground mb-2">MANAGING BRANDS</p>
+          <div className="space-y-2">
+            <div className="flex items-center gap-2 text-sm">
+              <div className="w-2 h-2 rounded-full bg-blue-500"></div>
+              <span>Rekker</span>
+            </div>
+            <div className="flex items-center gap-2 text-sm">
+              <div className="w-2 h-2 rounded-full bg-green-500"></div>
+              <span>Saffron</span>
+            </div>
+            <div className="flex items-center gap-2 text-sm">
+              <div className="w-2 h-2 rounded-full bg-purple-500"></div>
+              <span>Cornells</span>
+            </div>
+          </div>
+        </div>
       </aside>
     </Fragment>
   );

@@ -1,4 +1,5 @@
-//client/src/components/admin-view/order-details.jsx
+/* eslint-disable react/prop-types */
+// client/src/components/admin-view/order-details.jsx
 import { useState } from "react";
 import CommonForm from "../common/form";
 import { DialogContent } from "../ui/dialog";
@@ -12,6 +13,7 @@ import {
   updateOrderStatus,
 } from "@/store/admin/order-slice";
 import { useToast } from "../ui/use-toast";
+import { brandOptionsMap } from "@/config";
 
 const initialFormData = {
   status: "",
@@ -22,8 +24,6 @@ function AdminOrderDetailsView({ orderDetails }) {
   const { user } = useSelector((state) => state.auth);
   const dispatch = useDispatch();
   const { toast } = useToast();
-
-  console.log(orderDetails, "orderDetailsorderDetails");
 
   function handleUpdateStatus(event) {
     event.preventDefault();
@@ -43,13 +43,25 @@ function AdminOrderDetailsView({ orderDetails }) {
     });
   }
 
+  // Group items by brand
+  const itemsByBrand = orderDetails?.cartItems?.reduce((acc, item) => {
+    const brand = item.brand || 'unknown';
+    if (!acc[brand]) {
+      acc[brand] = [];
+    }
+    acc[brand].push(item);
+    return acc;
+  }, {});
+
   return (
-    <DialogContent className="sm:max-w-[600px]">
+    <DialogContent className="sm:max-w-[700px] max-h-[90vh] overflow-y-auto">
       <div className="grid gap-6">
+        {/* Order Summary */}
         <div className="grid gap-2">
-          <div className="flex mt-6 items-center justify-between">
+          <h2 className="text-xl font-bold mb-2">Order Summary</h2>
+          <div className="flex mt-2 items-center justify-between">
             <p className="font-medium">Order ID</p>
-            <Label>{orderDetails?._id}</Label>
+            <Label className="text-sm">{orderDetails?._id}</Label>
           </div>
           <div className="flex mt-2 items-center justify-between">
             <p className="font-medium">Order Date</p>
@@ -57,7 +69,7 @@ function AdminOrderDetailsView({ orderDetails }) {
           </div>
           <div className="flex mt-2 items-center justify-between">
             <p className="font-medium">Order Price</p>
-            <Label>${orderDetails?.totalAmount}</Label>
+            <Label className="text-lg font-bold">KES {orderDetails?.totalAmount}</Label>
           </div>
           <div className="flex mt-2 items-center justify-between">
             <p className="font-medium">Payment method</p>
@@ -65,18 +77,22 @@ function AdminOrderDetailsView({ orderDetails }) {
           </div>
           <div className="flex mt-2 items-center justify-between">
             <p className="font-medium">Payment Status</p>
-            <Label>{orderDetails?.paymentStatus}</Label>
+            <Badge variant={orderDetails?.paymentStatus === "paid" ? "default" : "secondary"}>
+              {orderDetails?.paymentStatus}
+            </Badge>
           </div>
           <div className="flex mt-2 items-center justify-between">
             <p className="font-medium">Order Status</p>
             <Label>
               <Badge
                 className={`py-1 px-3 ${
-                  orderDetails?.orderStatus === "confirmed"
+                  orderDetails?.orderStatus === "confirmed" || orderDetails?.orderStatus === "delivered"
                     ? "bg-green-500"
                     : orderDetails?.orderStatus === "rejected"
                     ? "bg-red-600"
-                    : "bg-black"
+                    : orderDetails?.orderStatus === "inShipping"
+                    ? "bg-blue-500"
+                    : "bg-yellow-500"
                 }`}
               >
                 {orderDetails?.orderStatus}
@@ -84,38 +100,105 @@ function AdminOrderDetailsView({ orderDetails }) {
             </Label>
           </div>
         </div>
+
         <Separator />
+
+        {/* Order Details by Brand */}
         <div className="grid gap-4">
-          <div className="grid gap-2">
-            <div className="font-medium">Order Details</div>
-            <ul className="grid gap-3">
-              {orderDetails?.cartItems && orderDetails?.cartItems.length > 0
-                ? orderDetails?.cartItems.map((item) => (
-                    <li className="flex items-center justify-between">
-                      <span>Title: {item.title}</span>
-                      <span>Quantity: {item.quantity}</span>
-                      <span>Price: ${item.price}</span>
-                    </li>
-                  ))
-                : null}
-            </ul>
-          </div>
+          <div className="font-medium text-lg">Order Items</div>
+          
+          {itemsByBrand && Object.entries(itemsByBrand).map(([brand, items]) => (
+            <div key={brand} className="border rounded-lg p-4">
+              <div className="flex items-center gap-2 mb-3">
+                <div className={`w-3 h-3 rounded-full ${
+                  brand === 'rekker' ? 'bg-blue-500' :
+                  brand === 'saffron' ? 'bg-green-500' :
+                  brand === 'cornells' ? 'bg-purple-500' :
+                  'bg-gray-500'
+                }`}></div>
+                <h3 className="font-semibold">
+                  {brandOptionsMap[brand] || brand}
+                </h3>
+                <Badge variant="outline" className="ml-auto">
+                  {items.length} item{items.length > 1 ? 's' : ''}
+                </Badge>
+              </div>
+              
+              <ul className="grid gap-3">
+                {items.map((item, index) => (
+                  <li key={index} className="flex items-start justify-between bg-gray-50 p-3 rounded">
+                    <div className="flex gap-3 flex-1">
+                      {item.image && (
+                        <img 
+                          src={item.image} 
+                          alt={item.title}
+                          className="w-16 h-16 object-cover rounded"
+                        />
+                      )}
+                      <div className="flex-1">
+                        <span className="font-medium">{item.title}</span>
+                        {item.selectedVariation && (
+                          <p className="text-sm text-muted-foreground">
+                            Variation: {item.selectedVariation}
+                          </p>
+                        )}
+                        <p className="text-sm text-muted-foreground">
+                          Qty: {item.quantity} × KES {item.price}
+                        </p>
+                      </div>
+                    </div>
+                    <span className="font-semibold">
+                      KES {(item.quantity * item.price).toFixed(2)}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ))}
         </div>
+
+        <Separator />
+
+        {/* Shipping Info */}
         <div className="grid gap-4">
           <div className="grid gap-2">
-            <div className="font-medium">Shipping Info</div>
-            <div className="grid gap-0.5 text-muted-foreground">
-              <span>{user.userName}</span>
-              <span>{orderDetails?.addressInfo?.address}</span>
-              <span>{orderDetails?.addressInfo?.city}</span>
-              <span>{orderDetails?.addressInfo?.pincode}</span>
-              <span>{orderDetails?.addressInfo?.phone}</span>
-              <span>{orderDetails?.addressInfo?.notes}</span>
+            <div className="font-medium text-lg">Shipping Information</div>
+            <div className="grid gap-0.5 text-muted-foreground bg-gray-50 p-4 rounded-lg">
+              <div className="flex justify-between">
+                <span className="font-medium text-foreground">Name:</span>
+                <span>{user?.userName || orderDetails?.addressInfo?.name}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="font-medium text-foreground">Address:</span>
+                <span>{orderDetails?.addressInfo?.address}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="font-medium text-foreground">City:</span>
+                <span>{orderDetails?.addressInfo?.city}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="font-medium text-foreground">Pincode:</span>
+                <span>{orderDetails?.addressInfo?.pincode}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="font-medium text-foreground">Phone:</span>
+                <span>{orderDetails?.addressInfo?.phone}</span>
+              </div>
+              {orderDetails?.addressInfo?.notes && (
+                <div className="mt-2 pt-2 border-t">
+                  <span className="font-medium text-foreground">Notes:</span>
+                  <p className="mt-1">{orderDetails?.addressInfo?.notes}</p>
+                </div>
+              )}
             </div>
           </div>
         </div>
 
+        <Separator />
+
+        {/* Update Order Status */}
         <div>
+          <h3 className="font-medium text-lg mb-3">Update Order Status</h3>
           <CommonForm
             formControls={[
               {

@@ -1,6 +1,6 @@
 /* eslint-disable no-unused-vars */
-// client/src/App.jsx
-import { Route, Routes } from "react-router-dom";
+// client/src/App.jsx - Rekker Professional Company Website
+import { Route, Routes, useLocation } from "react-router-dom";
 import AuthLayout from "./components/auth/layout";
 import AuthLogin from "./pages/auth/login";
 import AuthRegister from "./pages/auth/register";
@@ -25,7 +25,31 @@ import PaymentSuccessPage from "./pages/shopping-view/payment-success";
 import SearchProducts from "./pages/shopping-view/search";
 import { auth } from "./firebase";
 import { onAuthStateChanged } from "firebase/auth";
-import SpectacularLoader from  "./components/common/spectacular-loader"
+import SpectacularLoader from "./components/common/spectacular-loader";
+
+// Rekker-specific pages
+import About from "./pages/shopping-view/about";
+import Services from "./pages/shopping-view/services";
+import Distributors from "./pages/shopping-view/distributors";
+import Contact from "./pages/shopping-view/contact.jsx";
+import SaffronBrand from "./pages/shopping-view/brands/saffron";
+import CornellsBrand from "./pages/shopping-view/brands/cornells";
+import BrandsOverview from "./pages/shopping-view/brands-overview";
+
+// Scroll to top component
+function ScrollToTop() {
+  const { pathname } = useLocation();
+
+  useEffect(() => {
+    window.scrollTo({
+      top: 0,
+      left: 0,
+      behavior: "instant" // Use "instant" for immediate scroll, "smooth" for animated
+    });
+  }, [pathname]);
+
+  return null;
+}
 
 function App() {
   const { user, isAuthenticated, isLoading } = useSelector(
@@ -47,14 +71,12 @@ function App() {
         if (firebaseUser) {
           console.log('🔥 Firebase user detected:', firebaseUser.email);
           
-          // Update Firebase user in Redux immediately
           dispatch(setFirebaseUser({
             uid: firebaseUser.uid,
             email: firebaseUser.email,
             displayName: firebaseUser.displayName
           }));
 
-          // Sync Firebase auth with backend
           console.log('🔄 Syncing Firebase user with backend...');
           const syncResult = await dispatch(syncFirebaseAuth(firebaseUser));
           
@@ -63,10 +85,8 @@ function App() {
         } else {
           console.log('🚫 No Firebase user detected');
           
-          // Clear Firebase user from Redux
           dispatch(setFirebaseUser(null));
           
-          // Check for traditional auth (JWT cookie) as fallback
           console.log('🔍 Checking for traditional auth...');
           await dispatch(checkAuth());
         }
@@ -82,7 +102,6 @@ function App() {
       }
     });
 
-    // Cleanup function
     return () => {
       console.log('🧹 App: Cleaning up Firebase auth listener...');
       mounted = false;
@@ -90,10 +109,9 @@ function App() {
     };
   }, [dispatch]);
 
-  // Show loading until Firebase is initialized
   if (!firebaseInitialized || isLoading) {
     console.log('⏳ App: Showing loader...', { firebaseInitialized, isLoading });
-    return <SpectacularLoader/>;
+    return <SpectacularLoader />;
   }
 
   console.log('🎯 App render - Auth State:', { 
@@ -106,6 +124,7 @@ function App() {
 
   return (
     <div className="flex flex-col overflow-hidden bg-white">
+      <ScrollToTop />
       <Routes>
         <Route
           path="/"
@@ -140,21 +159,52 @@ function App() {
           <Route path="orders" element={<AdminOrders />} />
           <Route path="features" element={<AdminFeatures />} />
         </Route>
-        <Route
-          path="/shop"
-          element={
-            <CheckAuth isAuthenticated={isAuthenticated} user={user}>
-              <ShoppingLayout />
-            </CheckAuth>
-          }
-        >
+        {/* Public Shopping Routes - No Auth Required for Browsing */}
+        <Route path="/shop" element={<ShoppingLayout />}>
           <Route path="home" element={<ShoppingHome />} />
+          <Route path="about" element={<About />} />
+          <Route path="services" element={<Services />} />
+          <Route path="distributors" element={<Distributors />} />
+          <Route path="contact" element={<Contact />} />
+          <Route path="brands" element={<BrandsOverview />} />
+          <Route path="brands/saffron" element={<SaffronBrand />} />
+          <Route path="brands/cornells" element={<CornellsBrand />} />
           <Route path="listing" element={<ShoppingListing />} />
-          <Route path="checkout" element={<ShoppingCheckout />} />
-          <Route path="account" element={<ShoppingAccount />} />
-          <Route path="paypal-return" element={<PaypalReturnPage />} />
-          <Route path="payment-success" element={<PaymentSuccessPage />} />
           <Route path="search" element={<SearchProducts />} />
+          
+          {/* Protected Routes - Auth Required */}
+          <Route
+            path="checkout"
+            element={
+              <CheckAuth isAuthenticated={isAuthenticated} user={user}>
+                <ShoppingCheckout />
+              </CheckAuth>
+            }
+          />
+          <Route
+            path="account"
+            element={
+              <CheckAuth isAuthenticated={isAuthenticated} user={user}>
+                <ShoppingAccount />
+              </CheckAuth>
+            }
+          />
+          <Route
+            path="paypal-return"
+            element={
+              <CheckAuth isAuthenticated={isAuthenticated} user={user}>
+                <PaypalReturnPage />
+              </CheckAuth>
+            }
+          />
+          <Route
+            path="payment-success"
+            element={
+              <CheckAuth isAuthenticated={isAuthenticated} user={user}>
+                <PaymentSuccessPage />
+              </CheckAuth>
+            }
+          />
         </Route>
         <Route path="/unauth-page" element={<UnauthPage />} />
         <Route path="*" element={<NotFound />} />

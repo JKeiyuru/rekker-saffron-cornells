@@ -1,3 +1,4 @@
+/* eslint-disable no-unused-vars */
 /* eslint-disable react/prop-types */
 // client/src/components/admin-view/variation-uploader.jsx
 import { useState, useRef } from "react";
@@ -10,6 +11,29 @@ import { useToast } from "../ui/use-toast";
 import axios from "axios";
 import { API_BASE_URL } from "@/config/config.js";
 
+// Add a simple rate limiter to prevent too many requests
+const rateLimiter = {
+  lastUploadTime: 0,
+  minInterval: 2000, // 2 seconds between uploads
+  
+  canUpload() {
+    const now = Date.now();
+    if (now - this.lastUploadTime < this.minInterval) {
+      return false;
+    }
+    return true;
+  },
+  
+  recordUpload() {
+    this.lastUploadTime = Date.now();
+  },
+  
+  getWaitTime() {
+    const elapsed = Date.now() - this.lastUploadTime;
+    const remaining = this.minInterval - elapsed;
+    return Math.max(0, Math.ceil(remaining / 1000));
+  }
+};
 
 function VariationUploader({ formData, setFormData }) {
   const [imageFile, setImageFile] = useState(null);
@@ -23,7 +47,7 @@ function VariationUploader({ formData, setFormData }) {
     const file = e.target.files?.[0];
     if (file) {
       // Validate file type
-      const validTypes = ['image/jpeg', 'image/png', 'image/webp'];
+      const validTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/jpg'];
       if (!validTypes.includes(file.type)) {
         setError('Only JPG, PNG, and WEBP images are allowed');
         return;
@@ -66,29 +90,68 @@ function VariationUploader({ formData, setFormData }) {
     return true;
   };
 
+  const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+
   const uploadImageToCloudinary = async (file) => {
+    // Check rate limit
+    if (!rateLimiter.canUpload()) {
+      const waitTime = rateLimiter.getWaitTime();
+      throw new Error(`Please wait ${waitTime} seconds before uploading again`);
+    }
+
     const formDataUpload = new FormData();
     formDataUpload.append("my_file", file);
 
-    const response = await axios.post(
-      `${API_BASE_URL}/api/admin/products/upload-image`,
-      formDataUpload,
-      {
-        headers: {
-          'Content-Type': 'multipart/form-data'
+    try {
+      const response = await axios.post(
+        `${API_BASE_URL}/api/admin/products/upload-image`,
+        formDataUpload,
+        {
+          headers: {
+            'Content-Type': 'multipart/form-data'
+          },
+          timeout: 30000 // 30 second timeout
         }
+      );
+
+      if (!response.data?.success) {
+        throw new Error(response.data?.message || "Failed to upload image");
       }
-    );
 
-    if (!response.data?.success) {
-      throw new Error(response.data?.message || "Failed to upload image");
+      rateLimiter.recordUpload();
+      return response.data.result.url;
+    } catch (error) {
+      if (error.response?.status === 429) {
+        throw new Error("Upload rate limit exceeded. Please wait a moment and try again.");
+      }
+      throw error;
     }
-
-    return response.data.result.url;
   };
 
   const handleAddVariation = async () => {
     if (!validateVariation()) return;
+
+    // Prevent double submission
+    if (isUploading) {
+      toast({
+        title: "Upload in progress",
+        description: "Please wait for the current upload to complete",
+        variant: "default",
+      });
+      return;
+    }
+
+    // Check rate limit before starting
+    if (!rateLimiter.canUpload()) {
+      const waitTime = rateLimiter.getWaitTime();
+      setError(`Please wait ${waitTime} seconds before uploading again`);
+      toast({
+        title: "Too fast!",
+        description: `Please wait ${waitTime} seconds before uploading again`,
+        variant: "destructive",
+      });
+      return;
+    }
 
     setIsUploading(true);
     setError("");
@@ -121,10 +184,11 @@ function VariationUploader({ formData, setFormData }) {
 
     } catch (err) {
       console.error("Upload error:", err);
-      setError(err.response?.data?.message || err.message || "Failed to upload image");
+      const errorMessage = err.response?.data?.message || err.message || "Failed to upload image";
+      setError(errorMessage);
       toast({
         title: "Upload failed",
-        description: "Failed to upload image. Please try again.",
+        description: errorMessage,
         variant: "destructive",
       });
     } finally {
@@ -154,7 +218,7 @@ function VariationUploader({ formData, setFormData }) {
     e.preventDefault();
     const file = e.dataTransfer.files?.[0];
     if (file) {
-      const validTypes = ['image/jpeg', 'image/png', 'image/webp'];
+      const validTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/jpg'];
       if (!validTypes.includes(file.type)) {
         setError('Only JPG, PNG, and WEBP images are allowed');
         return;
@@ -197,11 +261,15 @@ function VariationUploader({ formData, setFormData }) {
                   id="variation-file"
                   ref={fileInputRef}
                   type="file"
-                  accept="image/jpeg,image/png,image/webp"
+                  accept="image/jpeg,image/jpg,image/png,image/webp"
                   onChange={handleFileChange}
                   className="hidden"
+                  disabled={isUploading}
                 />
-                <Label htmlFor="variation-file" className="cursor-pointer">
+                <Label 
+                  htmlFor="variation-file" 
+                  className={`cursor-pointer ${isUploading ? 'opacity-50 cursor-not-allowed' : ''}`}
+                >
                   <UploadCloud className="w-8 h-8 mx-auto mb-2 text-gray-400" />
                   <p className="text-sm text-gray-600">
                     Drag & drop an image here, or click to select
@@ -232,6 +300,7 @@ function VariationUploader({ formData, setFormData }) {
                     if (fileInputRef.current) fileInputRef.current.value = "";
                   }}
                   className="text-red-500 hover:text-red-700"
+                  disabled={isUploading}
                 >
                   <X className="w-4 h-4 mr-1" />
                   Remove
@@ -254,6 +323,7 @@ function VariationUploader({ formData, setFormData }) {
             onChange={handleLabelChange}
             className="w-full"
             maxLength={100}
+            disabled={isUploading}
           />
           <p className="text-xs text-gray-500 mt-1">
             {label.length}/100 characters
@@ -276,8 +346,8 @@ function VariationUploader({ formData, setFormData }) {
         >
           {isUploading ? (
             <>
-              <Skeleton className="w-4 h-4 mr-2" />
-              Uploading...
+              <Skeleton className="w-4 h-4 mr-2 inline-block" />
+              Uploading... Please wait
             </>
           ) : (
             <>
@@ -307,7 +377,7 @@ function VariationUploader({ formData, setFormData }) {
                     alt={variation.label}
                     className="w-full h-full object-cover"
                     onError={(e) => {
-                      e.target.src = "/api/placeholder/150/150";
+                      e.target.src = "https://images.unsplash.com/photo-1526947425960-945c6e72858f?w=400&h=400&fit=crop";
                       e.target.alt = "Image failed to load";
                     }}
                   />
@@ -323,6 +393,7 @@ function VariationUploader({ formData, setFormData }) {
                   variant="destructive"
                   className="absolute -top-2 -right-2 w-6 h-6 p-0 opacity-0 group-hover:opacity-100 transition-opacity rounded-full"
                   onClick={() => handleRemoveVariation(index)}
+                  disabled={isUploading}
                 >
                   <Trash2 className="w-3 h-3" />
                 </Button>

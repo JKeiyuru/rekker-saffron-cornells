@@ -6,13 +6,15 @@ import {
 } from "firebase/auth";
 
 const firebaseConfig = {
-  apiKey: "AIzaSyAsCrsQI2ZklM7zXkKV93pJai-EQ51LpAs",
-  authDomain: "nemmoh-ecommerce.firebaseapp.com",
-  projectId: "nemmoh-ecommerce",
-  storageBucket: "nemmoh-ecommerce.appspot.com",
-  messagingSenderId: "394191972626",
-  appId: "1:394191972626:web:a8af2e06fc405f928e6bcb"
+  apiKey: "AIzaSyCzyCwiEgFs0h264o-UBeIaxphwjszQ1Wo",
+  authDomain: "rekkerwebapp.firebaseapp.com",
+  projectId: "rekkerwebapp",
+  storageBucket: "rekkerwebapp.firebasestorage.app",
+  messagingSenderId: "166558603833",
+  appId: "1:166558603833:web:17531fa4ad51f12738cbe8",
+  measurementId: "G-GF8SMC8FQ7"
 };
+
 
 const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
