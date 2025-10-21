@@ -1,3 +1,4 @@
+/* eslint-disable react/prop-types */
 // client/src/components/common/check-auth.jsx
 import { Navigate, useLocation } from "react-router-dom";
 import { useSelector } from "react-redux";
@@ -6,7 +7,7 @@ function CheckAuth({ children }) {
   const location = useLocation();
   const { isAuthenticated, user, isLoading } = useSelector((state) => state.auth);
   
-  // Debug logs - remove after fixing
+  // Debug logs
   console.log('CheckAuth Debug:', {
     isAuthenticated,
     user,
@@ -28,10 +29,23 @@ function CheckAuth({ children }) {
   const isAdminPage = location.pathname.startsWith("/admin");
   const isShopPage = location.pathname.startsWith("/shop");
 
-  // Root path redirect
+  // Protected routes that require authentication (checkout, account, payment pages)
+  const protectedShopRoutes = [
+    "/shop/checkout",
+    "/shop/account",
+    "/shop/paypal-return",
+    "/shop/payment-success"
+  ];
+  const isProtectedShopRoute = protectedShopRoutes.some(route => 
+    location.pathname.startsWith(route)
+  );
+
+  // Root path redirect - Default to shop home for everyone
   if (location.pathname === "/") {
+    if (!isAuthenticated) {
+      return <Navigate to="/shop/home" replace />;
+    }
     return <Navigate to={
-      !isAuthenticated ? "/auth/login" : 
       user?.role === "admin" ? "/admin/dashboard" : "/shop/home"
     } replace />;
   }
@@ -43,21 +57,27 @@ function CheckAuth({ children }) {
     } replace />;
   }
 
-  // Protect admin routes
-  if (isAuthenticated && user?.role !== "admin" && isAdminPage) {
-    return <Navigate to="/unauthorized" replace />;
+  // Protect admin routes - only admins can access
+  if (isAdminPage) {
+    if (!isAuthenticated) {
+      return <Navigate to="/auth/login" replace />;
+    }
+    if (user?.role !== "admin") {
+      return <Navigate to="/shop/home" replace />;
+    }
   }
 
-  // Redirect admin from shop to dashboard
-  if (isAuthenticated && user?.role === "admin" && isShopPage) {
+  // Redirect admin from non-protected shop pages to dashboard
+  if (isAuthenticated && user?.role === "admin" && isShopPage && !isProtectedShopRoute) {
     return <Navigate to="/admin/dashboard" replace />;
   }
 
-  // Protect all routes when not authenticated
-  if (!isAuthenticated && !isAuthPage) {
+  // Protect specific shop routes (checkout, account, etc.)
+  if (isProtectedShopRoute && !isAuthenticated) {
     return <Navigate to="/auth/login" state={{ from: location }} replace />;
   }
 
+  // Allow all other routes (including shopping pages for guests)
   return <>{children}</>;
 }
 

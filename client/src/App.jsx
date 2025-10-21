@@ -1,5 +1,5 @@
 /* eslint-disable no-unused-vars */
-// client/src/App.jsx - Rekker Professional Company Website
+// client/src/App.jsx - Rekker Professional Company Website with Guest Mode
 import { Route, Routes, useLocation } from "react-router-dom";
 import AuthLayout from "./components/auth/layout";
 import AuthLogin from "./pages/auth/login";
@@ -44,7 +44,7 @@ function ScrollToTop() {
     window.scrollTo({
       top: 0,
       left: 0,
-      behavior: "instant" // Use "instant" for immediate scroll, "smooth" for animated
+      behavior: "instant"
     });
   }, [pathname]);
 
@@ -126,6 +126,7 @@ function App() {
     <div className="flex flex-col overflow-hidden bg-white">
       <ScrollToTop />
       <Routes>
+        {/* Root redirect - handled by CheckAuth */}
         <Route
           path="/"
           element={
@@ -135,6 +136,8 @@ function App() {
             ></CheckAuth>
           }
         />
+
+        {/* Auth Routes - Login/Register */}
         <Route
           path="/auth"
           element={
@@ -146,6 +149,8 @@ function App() {
           <Route path="login" element={<AuthLogin />} />
           <Route path="register" element={<AuthRegister />} />
         </Route>
+
+        {/* Admin Routes - Protected */}
         <Route
           path="/admin"
           element={
@@ -159,8 +164,10 @@ function App() {
           <Route path="orders" element={<AdminOrders />} />
           <Route path="features" element={<AdminFeatures />} />
         </Route>
-        {/* Public Shopping Routes - No Auth Required for Browsing */}
+
+        {/* Shopping Routes - PUBLIC (No CheckAuth wrapper for browsing) */}
         <Route path="/shop" element={<ShoppingLayout />}>
+          {/* Public Routes - Anyone can access */}
           <Route path="home" element={<ShoppingHome />} />
           <Route path="about" element={<About />} />
           <Route path="services" element={<Services />} />
@@ -206,7 +213,11 @@ function App() {
             }
           />
         </Route>
+
+        {/* Unauthorized Page */}
         <Route path="/unauth-page" element={<UnauthPage />} />
+        
+        {/* 404 Not Found */}
         <Route path="*" element={<NotFound />} />
       </Routes>
     </div>
