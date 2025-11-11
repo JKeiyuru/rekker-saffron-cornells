@@ -1,40 +1,48 @@
 /* eslint-disable no-unused-vars */
-// client/src/App.jsx - Rekker Professional Company Website with Guest Mode
+// client/src/App.jsx - Optimized for Performance and 404 Fixes
+import { lazy, Suspense } from "react";
 import { Route, Routes, useLocation } from "react-router-dom";
-import AuthLayout from "./components/auth/layout";
-import AuthLogin from "./pages/auth/login";
-import AuthRegister from "./pages/auth/register";
-import AdminLayout from "./components/admin-view/layout";
-import AdminDashboard from "./pages/admin-view/dashboard";
-import AdminProducts from "./pages/admin-view/products";
-import AdminOrders from "./pages/admin-view/orders";
-import AdminFeatures from "./pages/admin-view/features";
-import ShoppingLayout from "./components/shopping-view/layout";
-import NotFound from "./pages/not-found";
-import ShoppingHome from "./pages/shopping-view/home";
-import ShoppingListing from "./pages/shopping-view/listing";
-import ShoppingCheckout from "./pages/shopping-view/checkout";
-import ShoppingAccount from "./pages/shopping-view/account";
-import CheckAuth from "./components/common/check-auth";
-import UnauthPage from "./pages/unauth-page";
-import { useDispatch, useSelector } from "react-redux";
 import { useEffect, useState } from "react";
+import { useDispatch, useSelector } from "react-redux";
 import { checkAuth, setFirebaseUser, clearAuth, syncFirebaseAuth } from "./store/auth-slice";
-import PaypalReturnPage from "./pages/shopping-view/paypal-return";
-import PaymentSuccessPage from "./pages/shopping-view/payment-success";
-import SearchProducts from "./pages/shopping-view/search";
-import { auth } from "./firebase";
 import { onAuthStateChanged } from "firebase/auth";
+import { auth } from "./firebase";
+
+// Layout Components
+import AuthLayout from "./components/auth/layout";
+import AdminLayout from "./components/admin-view/layout";
+import ShoppingLayout from "./components/shopping-view/layout";
+import CheckAuth from "./components/common/check-auth";
 import SpectacularLoader from "./components/common/spectacular-loader";
 
-// Rekker-specific pages
-import About from "./pages/shopping-view/about";
-import Services from "./pages/shopping-view/services";
-import Distributors from "./pages/shopping-view/distributors";
-import Contact from "./pages/shopping-view/contact.jsx";
-import SaffronBrand from "./pages/shopping-view/brands/saffron";
-import CornellsBrand from "./pages/shopping-view/brands/cornells";
-import BrandsOverview from "./pages/shopping-view/brands-overview";
+// Pages - Lazy Load for Performance
+const AuthLogin = lazy(() => import("./pages/auth/login"));
+const AuthRegister = lazy(() => import("./pages/auth/register"));
+const AdminDashboard = lazy(() => import("./pages/admin-view/dashboard"));
+const AdminProducts = lazy(() => import("./pages/admin-view/products"));
+const AdminOrders = lazy(() => import("./pages/admin-view/orders"));
+const AdminFeatures = lazy(() => import("./pages/admin-view/features"));
+const ShoppingHome = lazy(() => import("./pages/shopping-view/home"));
+const ShoppingListing = lazy(() => import("./pages/shopping-view/listing"));
+const ShoppingCheckout = lazy(() => import("./pages/shopping-view/checkout"));
+const ShoppingAccount = lazy(() => import("./pages/shopping-view/account"));
+const PaypalReturnPage = lazy(() => import("./pages/shopping-view/paypal-return"));
+const PaymentSuccessPage = lazy(() => import("./pages/shopping-view/payment-success"));
+const SearchProducts = lazy(() => import("./pages/shopping-view/search"));
+const About = lazy(() => import("./pages/shopping-view/about"));
+const Services = lazy(() => import("./pages/shopping-view/services"));
+const Distributors = lazy(() => import("./pages/shopping-view/distributors"));
+const Contact = lazy(() => import("./pages/shopping-view/contact"));
+const SaffronBrand = lazy(() => import("./pages/shopping-view/brands/saffron"));
+const CornellsBrand = lazy(() => import("./pages/shopping-view/brands/cornells"));
+const BrandsOverview = lazy(() => import("./pages/shopping-view/brands-overview"));
+const NotFound = lazy(() => import("./pages/not-found"));
+const UnauthPage = lazy(() => import("./pages/unauth-page"));
+
+// Loading Fallback Component
+function LoadingFallback() {
+  return <SpectacularLoader />;
+}
 
 // Scroll to top component
 function ScrollToTop() {
@@ -58,12 +66,12 @@ function App() {
   const dispatch = useDispatch();
   const [firebaseInitialized, setFirebaseInitialized] = useState(false);
 
+  // Firebase Authentication Setup
   useEffect(() => {
     let mounted = true;
 
     console.log('🚀 App: Setting up Firebase auth listener...');
 
-    // Firebase Auth State Listener
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
       if (!mounted) return;
 
@@ -109,6 +117,7 @@ function App() {
     };
   }, [dispatch]);
 
+  // Show loader while initializing
   if (!firebaseInitialized || isLoading) {
     console.log('⏳ App: Showing loader...', { firebaseInitialized, isLoading });
     return <SpectacularLoader />;
@@ -125,101 +134,101 @@ function App() {
   return (
     <div className="flex flex-col overflow-hidden bg-white">
       <ScrollToTop />
-      <Routes>
-        {/* Root redirect - handled by CheckAuth */}
-        <Route
-          path="/"
-          element={
-            <CheckAuth
-              isAuthenticated={isAuthenticated}
-              user={user}
-            ></CheckAuth>
-          }
-        />
-
-        {/* Auth Routes - Login/Register */}
-        <Route
-          path="/auth"
-          element={
-            <CheckAuth isAuthenticated={isAuthenticated} user={user}>
-              <AuthLayout />
-            </CheckAuth>
-          }
-        >
-          <Route path="login" element={<AuthLogin />} />
-          <Route path="register" element={<AuthRegister />} />
-        </Route>
-
-        {/* Admin Routes - Protected */}
-        <Route
-          path="/admin"
-          element={
-            <CheckAuth isAuthenticated={isAuthenticated} user={user}>
-              <AdminLayout />
-            </CheckAuth>
-          }
-        >
-          <Route path="dashboard" element={<AdminDashboard />} />
-          <Route path="products" element={<AdminProducts />} />
-          <Route path="orders" element={<AdminOrders />} />
-          <Route path="features" element={<AdminFeatures />} />
-        </Route>
-
-        {/* Shopping Routes - PUBLIC (No CheckAuth wrapper for browsing) */}
-        <Route path="/shop" element={<ShoppingLayout />}>
-          {/* Public Routes - Anyone can access */}
-          <Route path="home" element={<ShoppingHome />} />
-          <Route path="about" element={<About />} />
-          <Route path="services" element={<Services />} />
-          <Route path="distributors" element={<Distributors />} />
-          <Route path="contact" element={<Contact />} />
-          <Route path="brands" element={<BrandsOverview />} />
-          <Route path="brands/saffron" element={<SaffronBrand />} />
-          <Route path="brands/cornells" element={<CornellsBrand />} />
-          <Route path="listing" element={<ShoppingListing />} />
-          <Route path="search" element={<SearchProducts />} />
-          
-          {/* Protected Routes - Auth Required */}
+      <Suspense fallback={<LoadingFallback />}>
+        <Routes>
+          {/* Root redirect */}
           <Route
-            path="checkout"
+            path="/"
             element={
-              <CheckAuth isAuthenticated={isAuthenticated} user={user}>
-                <ShoppingCheckout />
-              </CheckAuth>
+              <CheckAuth
+                isAuthenticated={isAuthenticated}
+                user={user}
+              ></CheckAuth>
             }
           />
-          <Route
-            path="account"
-            element={
-              <CheckAuth isAuthenticated={isAuthenticated} user={user}>
-                <ShoppingAccount />
-              </CheckAuth>
-            }
-          />
-          <Route
-            path="paypal-return"
-            element={
-              <CheckAuth isAuthenticated={isAuthenticated} user={user}>
-                <PaypalReturnPage />
-              </CheckAuth>
-            }
-          />
-          <Route
-            path="payment-success"
-            element={
-              <CheckAuth isAuthenticated={isAuthenticated} user={user}>
-                <PaymentSuccessPage />
-              </CheckAuth>
-            }
-          />
-        </Route>
 
-        {/* Unauthorized Page */}
-        <Route path="/unauth-page" element={<UnauthPage />} />
-        
-        {/* 404 Not Found */}
-        <Route path="*" element={<NotFound />} />
-      </Routes>
+          {/* Auth Routes */}
+          <Route
+            path="/auth"
+            element={
+              <CheckAuth isAuthenticated={isAuthenticated} user={user}>
+                <AuthLayout />
+              </CheckAuth>
+            }
+          >
+            <Route path="login" element={<AuthLogin />} />
+            <Route path="register" element={<AuthRegister />} />
+          </Route>
+
+          {/* Admin Routes */}
+          <Route
+            path="/admin"
+            element={
+              <CheckAuth isAuthenticated={isAuthenticated} user={user}>
+                <AdminLayout />
+              </CheckAuth>
+            }
+          >
+            <Route path="dashboard" element={<AdminDashboard />} />
+            <Route path="products" element={<AdminProducts />} />
+            <Route path="orders" element={<AdminOrders />} />
+            <Route path="features" element={<AdminFeatures />} />
+          </Route>
+
+          {/* Shopping Routes */}
+          <Route path="/shop" element={<ShoppingLayout />}>
+            {/* Public Routes */}
+            <Route path="home" element={<ShoppingHome />} />
+            <Route path="about" element={<About />} />
+            <Route path="services" element={<Services />} />
+            <Route path="distributors" element={<Distributors />} />
+            <Route path="contact" element={<Contact />} />
+            <Route path="brands" element={<BrandsOverview />} />
+            <Route path="brands/saffron" element={<SaffronBrand />} />
+            <Route path="brands/cornells" element={<CornellsBrand />} />
+            <Route path="listing" element={<ShoppingListing />} />
+            <Route path="search" element={<SearchProducts />} />
+            
+            {/* Protected Routes */}
+            <Route
+              path="checkout"
+              element={
+                <CheckAuth isAuthenticated={isAuthenticated} user={user}>
+                  <ShoppingCheckout />
+                </CheckAuth>
+              }
+            />
+            <Route
+              path="account"
+              element={
+                <CheckAuth isAuthenticated={isAuthenticated} user={user}>
+                  <ShoppingAccount />
+                </CheckAuth>
+              }
+            />
+            <Route
+              path="paypal-return"
+              element={
+                <CheckAuth isAuthenticated={isAuthenticated} user={user}>
+                  <PaypalReturnPage />
+                </CheckAuth>
+              }
+            />
+            <Route
+              path="payment-success"
+              element={
+                <CheckAuth isAuthenticated={isAuthenticated} user={user}>
+                  <PaymentSuccessPage />
+                </CheckAuth>
+              }
+            />
+          </Route>
+
+          {/* Error Routes */}
+          <Route path="/unauth-page" element={<UnauthPage />} />
+          <Route path="*" element={<NotFound />} />
+        </Routes>
+      </Suspense>
     </div>
   );
 }

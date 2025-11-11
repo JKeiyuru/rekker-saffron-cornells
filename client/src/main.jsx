@@ -6,8 +6,11 @@ import { Provider } from "react-redux";
 import store from "./store/store.js";
 import { Toaster } from "./components/ui/toaster.jsx";
 
-createRoot(document.getElementById("root")).render(
-  <BrowserRouter>
+// Enable strict mode for development
+const root = createRoot(document.getElementById("root"));
+
+root.render(
+  <BrowserRouter basename="/">
     <Provider store={store}>
       <App />
       <Toaster />

@@ -1,6 +1,7 @@
+/* eslint-disable no-undef */
 /* eslint-disable no-unused-vars */
 /* eslint-disable react/prop-types */
-// client/src/components/shopping-view/filter.jsx - Rekker Product Filter
+// client/src/components/shopping-view/filter.jsx - Rekker Product Filter with Fixed Subcategories
 import { Fragment, useState } from "react";
 import { Label } from "../ui/label";
 import { Checkbox } from "../ui/checkbox";
@@ -30,10 +31,11 @@ function ProductFilter({ filters, handleFilter }) {
   };
 
   const clearAllFilters = () => {
-    // This would need to be passed from parent component
-    // For now, we'll assume handleFilter can handle clearing
-    Object.keys(filters).forEach(key => {
+    // Create a copy of current filters to clear
+    const filterKeys = Object.keys(filters);
+    filterKeys.forEach(key => {
       if (Array.isArray(filters[key])) {
+        // Remove each filter value individually
         filters[key].forEach(value => {
           handleFilter(key, value);
         });
@@ -53,6 +55,11 @@ function ProductFilter({ filters, handleFilter }) {
 
   const isFilterActive = (key, value) => {
     return filters?.[key]?.includes(value) || false;
+  };
+
+  // Enhanced filter handler to ensure proper state updates
+  const handleFilterClick = (filterType, value) => {
+    handleFilter(filterType, value);
   };
 
   return (
@@ -101,7 +108,7 @@ function ProductFilter({ filters, handleFilter }) {
                 >
                   <Checkbox
                     checked={isFilterActive("brand", brand.id)}
-                    onCheckedChange={() => handleFilter("brand", brand.id)}
+                    onCheckedChange={() => handleFilterClick("brand", brand.id)}
                   />
                   <span className="font-medium text-sm">{brand.label}</span>
                   {isFilterActive("brand", brand.id) && (
@@ -143,7 +150,7 @@ function ProductFilter({ filters, handleFilter }) {
                 >
                   <Checkbox
                     checked={isFilterActive("category", category.id)}
-                    onCheckedChange={() => handleFilter("category", category.id)}
+                    onCheckedChange={() => handleFilterClick("category", category.id)}
                   />
                   <span className="font-medium text-sm">{category.label}</span>
                   {isFilterActive("category", category.id) && (
@@ -183,7 +190,7 @@ function ProductFilter({ filters, handleFilter }) {
                   <Label className="flex items-center gap-2 cursor-pointer hover:bg-orange-50 p-2 rounded transition-colors font-semibold">
                     <Checkbox
                       checked={isFilterActive("category", category.id)}
-                      onCheckedChange={() => handleFilter("category", category.id)}
+                      onCheckedChange={() => handleFilterClick("category", category.id)}
                     />
                     <span className="text-sm">{category.label}</span>
                     {isFilterActive("category", category.id) && (
@@ -199,7 +206,7 @@ function ProductFilter({ filters, handleFilter }) {
                       >
                         <Checkbox
                           checked={isFilterActive("subcategory", subcat.id)}
-                          onCheckedChange={() => handleFilter("subcategory", subcat.id)}
+                          onCheckedChange={() => handleFilterClick("subcategory", subcat.id)}
                         />
                         <span className="text-xs">{subcat.label}</span>
                         {isFilterActive("subcategory", subcat.id) && (
@@ -242,7 +249,7 @@ function ProductFilter({ filters, handleFilter }) {
                   <Label className="flex items-center gap-2 cursor-pointer hover:bg-rose-50 p-2 rounded transition-colors font-semibold">
                     <Checkbox
                       checked={isFilterActive("category", category.id)}
-                      onCheckedChange={() => handleFilter("category", category.id)}
+                      onCheckedChange={() => handleFilterClick("category", category.id)}
                     />
                     <span className="text-sm">{category.label}</span>
                     {isFilterActive("category", category.id) && (
@@ -258,7 +265,7 @@ function ProductFilter({ filters, handleFilter }) {
                       >
                         <Checkbox
                           checked={isFilterActive("subcategory", subcat.id)}
-                          onCheckedChange={() => handleFilter("subcategory", subcat.id)}
+                          onCheckedChange={() => handleFilterClick("subcategory", subcat.id)}
                         />
                         <span className="text-xs">{subcat.label}</span>
                         {isFilterActive("subcategory", subcat.id) && (
@@ -272,6 +279,17 @@ function ProductFilter({ filters, handleFilter }) {
             </div>
           )}
         </div>
+
+        {/* Debug Info - Remove in production */}
+        {process.env.NODE_ENV === 'development' && (
+          <>
+            <Separator />
+            <div className="p-2 bg-gray-50 rounded text-xs">
+              <div className="font-semibold mb-1">Debug Info:</div>
+              <div>Active Filters: {JSON.stringify(filters)}</div>
+            </div>
+          </>
+        )}
       </div>
     </div>
   );

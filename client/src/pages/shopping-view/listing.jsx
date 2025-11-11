@@ -1,5 +1,5 @@
 /* eslint-disable react/jsx-key */
-// client/src/pages/shopping-view/listing.jsx - Rekker Product Listing with Guest Mode
+// client/src/pages/shopping-view/listing.jsx - Optimized Product Listing
 import ProductFilter from "@/components/shopping-view/filter";
 import ProductDetailsDialog from "@/components/shopping-view/product-details";
 import ShoppingProductTile from "@/components/shopping-view/product-tile";
@@ -19,7 +19,7 @@ import {
   fetchProductDetails,
 } from "@/store/shop/products-slice";
 import { ArrowUpDownIcon, Grid3x3, LayoutGrid, Filter, X } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback, useMemo } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
@@ -46,47 +46,47 @@ function ShoppingListing() {
   const { cartItems } = useSelector((state) => state.shopCart);
   const { user, isAuthenticated } = useSelector((state) => state.auth);
   const [filters, setFilters] = useState({});
-  const [sort, setSort] = useState(null);
+  const [sort, setSort] = useState("price-lowtohigh");
   const [searchParams, setSearchParams] = useSearchParams();
   const [openDetailsDialog, setOpenDetailsDialog] = useState(false);
-  const [gridView, setGridView] = useState("4"); // 4 columns default
+  const [gridView, setGridView] = useState("4");
   const [mobileFilterOpen, setMobileFilterOpen] = useState(false);
   const { toast } = useToast();
 
   const categorySearchParam = searchParams.get("category");
 
-  function handleSort(value) {
+  const handleSort = useCallback((value) => {
     setSort(value);
-  }
+  }, []);
 
-  function handleFilter(getSectionId, getCurrentOption) {
-    let cpyFilters = { ...filters };
-    const indexOfCurrentSection = Object.keys(cpyFilters).indexOf(getSectionId);
+  const handleFilter = useCallback((getSectionId, getCurrentOption) => {
+    setFilters(prevFilters => {
+      const cpyFilters = { ...prevFilters };
+      const indexOfCurrentSection = Object.keys(cpyFilters).indexOf(getSectionId);
 
-    if (indexOfCurrentSection === -1) {
-      cpyFilters = {
-        ...cpyFilters,
-        [getSectionId]: [getCurrentOption],
-      };
-    } else {
-      const indexOfCurrentOption =
-        cpyFilters[getSectionId].indexOf(getCurrentOption);
+      if (indexOfCurrentSection === -1) {
+        cpyFilters[getSectionId] = [getCurrentOption];
+      } else {
+        const indexOfCurrentOption =
+          cpyFilters[getSectionId].indexOf(getCurrentOption);
 
-      if (indexOfCurrentOption === -1)
-        cpyFilters[getSectionId].push(getCurrentOption);
-      else cpyFilters[getSectionId].splice(indexOfCurrentOption, 1);
-    }
+        if (indexOfCurrentOption === -1) {
+          cpyFilters[getSectionId].push(getCurrentOption);
+        } else {
+          cpyFilters[getSectionId].splice(indexOfCurrentOption, 1);
+        }
+      }
 
-    setFilters(cpyFilters);
-    sessionStorage.setItem("filters", JSON.stringify(cpyFilters));
-  }
+      sessionStorage.setItem("filters", JSON.stringify(cpyFilters));
+      return cpyFilters;
+    });
+  }, []);
 
-  function handleGetProductDetails(getCurrentProductId) {
+  const handleGetProductDetails = useCallback((getCurrentProductId) => {
     dispatch(fetchProductDetails(getCurrentProductId));
-  }
+  }, [dispatch]);
 
-  function handleAddtoCart(getCurrentProductId, getTotalStock) {
-    // Check if user is authenticated
+  const handleAddtoCart = useCallback((getCurrentProductId, getTotalStock) => {
     if (!isAuthenticated || !user) {
       toast({
         title: "Login Required",
@@ -129,15 +129,15 @@ function ShoppingListing() {
         });
       }
     });
-  }
+  }, [isAuthenticated, user, cartItems, navigate, dispatch, toast]);
 
-  function clearAllFilters() {
+  const clearAllFilters = useCallback(() => {
     setFilters({});
     sessionStorage.removeItem("filters");
     setSearchParams({});
-  }
+  }, [setSearchParams]);
 
-  const getActiveFilterCount = () => {
+  const getActiveFilterCount = useMemo(() => {
     let count = 0;
     Object.values(filters).forEach(filterArray => {
       if (Array.isArray(filterArray)) {
@@ -145,25 +145,31 @@ function ShoppingListing() {
       }
     });
     return count;
-  };
+  }, [filters]);
 
+  // Initialize filters
   useEffect(() => {
-    setSort("price-lowtohigh");
-    setFilters(JSON.parse(sessionStorage.getItem("filters")) || {});
+    const stored = sessionStorage.getItem("filters");
+    if (stored) {
+      setFilters(JSON.parse(stored));
+    }
   }, [categorySearchParam]);
 
+  // Update URL params when filters change
   useEffect(() => {
     if (filters && Object.keys(filters).length > 0) {
       const createQueryString = createSearchParamsHelper(filters);
       setSearchParams(new URLSearchParams(createQueryString));
     }
-  }, [filters]);
+  }, [filters, setSearchParams]);
 
+  // Fetch products when filters or sort changes
   useEffect(() => {
-    if (filters !== null && sort !== null)
+    if (filters !== null && sort !== null) {
       dispatch(
         fetchAllFilteredProducts({ filterParams: filters, sortParams: sort })
       );
+    }
   }, [dispatch, sort, filters]);
 
   useEffect(() => {
@@ -199,9 +205,9 @@ function ShoppingListing() {
                       <Button variant="outline" size="sm" className="lg:hidden relative">
                         <Filter className="w-4 h-4 mr-2" />
                         Filters
-                        {getActiveFilterCount() > 0 && (
+                        {getActiveFilterCount > 0 && (
                           <span className="absolute -top-2 -right-2 bg-red-600 text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center">
-                            {getActiveFilterCount()}
+                            {getActiveFilterCount}
                           </span>
                         )}
                       </Button>
@@ -225,7 +231,7 @@ function ShoppingListing() {
 
                 <div className="flex items-center gap-3">
                   {/* Clear Filters Button */}
-                  {getActiveFilterCount() > 0 && (
+                  {getActiveFilterCount > 0 && (
                     <Button
                       variant="outline"
                       size="sm"
@@ -233,7 +239,7 @@ function ShoppingListing() {
                       className="text-red-600 border-red-300 hover:bg-red-50"
                     >
                       <X className="w-4 h-4 mr-2" />
-                      Clear Filters ({getActiveFilterCount()})
+                      Clear Filters ({getActiveFilterCount})
                     </Button>
                   )}
 
@@ -255,23 +261,6 @@ function ShoppingListing() {
                     >
                       <LayoutGrid className="w-4 h-4" />
                     </Button>
-                    <Button
-                      variant={gridView === "5" ? "secondary" : "ghost"}
-                      size="sm"
-                      onClick={() => setGridView("5")}
-                      className="h-8 w-8 p-0"
-                    >
-                      <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
-                        <rect x="2" y="2" width="4" height="4" />
-                        <rect x="8" y="2" width="4" height="4" />
-                        <rect x="14" y="2" width="4" height="4" />
-                        <rect x="20" y="2" width="2" height="4" />
-                        <rect x="2" y="8" width="4" height="4" />
-                        <rect x="8" y="8" width="4" height="4" />
-                        <rect x="14" y="8" width="4" height="4" />
-                        <rect x="20" y="8" width="2" height="4" />
-                      </svg>
-                    </Button>
                   </div>
 
                   {/* Sort Dropdown */}
@@ -283,7 +272,7 @@ function ShoppingListing() {
                         className="flex items-center gap-2 min-w-[140px]"
                       >
                         <ArrowUpDownIcon className="h-4 w-4" />
-                        <span className="hidden sm:inline">Sort by</span>
+                        <span className="hidden sm:inline">Sort</span>
                       </Button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end" className="w-[200px]">
@@ -303,7 +292,7 @@ function ShoppingListing() {
               </div>
 
               {/* Active Filters Display */}
-              {getActiveFilterCount() > 0 && (
+              {getActiveFilterCount > 0 && (
                 <div className="mt-4 pt-4 border-t border-gray-200">
                   <div className="flex flex-wrap gap-2">
                     <span className="text-sm font-medium text-gray-700">Active Filters:</span>
@@ -361,7 +350,7 @@ function ShoppingListing() {
                 <p className="text-gray-600 mb-6">
                   Try adjusting your filters or search criteria
                 </p>
-                {getActiveFilterCount() > 0 && (
+                {getActiveFilterCount > 0 && (
                   <Button
                     onClick={clearAllFilters}
                     className="bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-700 hover:to-rose-700"

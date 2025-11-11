@@ -1,8 +1,9 @@
 /* eslint-disable no-unused-vars */
-// client/src/components/shopping-view/header.jsx - Rekker Header with Guest Mode
+// client/src/components/shopping-view/header.jsx - Click-Based Dropdown with Proper Filtering
 import { 
   LogOut, Menu, ShoppingCart, UserCog, Heart, Phone, MapPin, 
-  Clock, Truck, ChevronDown, ChevronUp, Globe, ArrowRight, LogIn, UserPlus
+  Clock, Truck, ChevronDown, ChevronUp, Globe, ArrowRight, LogIn, UserPlus,
+  X
 } from "lucide-react";
 import {
   Link,
@@ -30,7 +31,7 @@ import { Label } from "../ui/label";
 import WishlistSheet from "./wishlist-sheet";
 import { useToast } from "@/components/ui/use-toast";
 
-// Rekker product categories - Updated to match previous navbar structure
+// Product categories with proper structure
 const productCategories = [
   {
     name: "Rekker Products",
@@ -45,7 +46,7 @@ const productCategories = [
     buttonGradient: "from-red-600 to-red-700",
     items: [
       { id: "stationery", label: "Stationery", desc: "Pens, Pencils, Rulers, Papers, Math Sets" },
-      { id: "bags", label: "School Bags & Suitcases", desc: "Backpacks, Travel Bags, Suitcases" },
+      { id: "bags-suitcases", label: "School Bags & Suitcases", desc: "Backpacks, Travel Bags, Suitcases" },
       { id: "toys", label: "Toys", desc: "Educational Toys, Building Blocks, Games" },
       { id: "kitchenware", label: "Kitchenware", desc: "Cooking Sets, Kitchen Tools, Utensils" },
       { id: "padlocks", label: "Padlocks", desc: "Security Locks, Heavy Duty Padlocks" },
@@ -66,11 +67,8 @@ const productCategories = [
     hoverColor: "hover:text-orange-700",
     buttonGradient: "from-orange-600 to-red-600",
     items: [
-      { id: "handwash", label: "Handwash", desc: "Premium Antibacterial Handwash" },
-      { id: "dishwashing", label: "Dishwashing Liquid", desc: "Concentrated Grease-Cutting Formula" },
-      { id: "shower-gel", label: "Shower Gels", desc: "Moisturizing Body Wash" },
-      { id: "aftershave", label: "After-Shave Anti-Bump", desc: "Men's Skincare Solution" },
-      { id: "detergent", label: "Liquid Detergent", desc: "High-Efficiency Laundry Care" }
+      { id: "home-care-hygiene", label: "Home Care & Hygiene", desc: "Premium cleaning solutions" },
+      { id: "beauty-body-care", label: "Beauty & Body Care", desc: "Moisturizing and skincare" },
     ]
   },
   {
@@ -85,10 +83,10 @@ const productCategories = [
     hoverColor: "hover:text-rose-700",
     buttonGradient: "from-rose-600 to-pink-600",
     items: [
-      { id: "lotions", label: "Bold & Beautiful Collection", desc: "Premium Body Lotions with Shea Butter" },
-      { id: "sunscreen", label: "Cute & Pretty Collection", desc: "Gentle Family & Baby Care" },
-      { id: "toners", label: "Dark & Beautiful Collection", desc: "Professional Hair Care Solutions" },
-      { id: "beauty-care", label: "Super Food Collection", desc: "Nutritive Wellness Products" }
+      { id: "super-foods", label: "Super Foods", desc: "Premium hair and body care" },
+      { id: "dark-beautiful", label: "Dark & Beautiful", desc: "Professional hair care" },
+      { id: "bold-beautiful", label: "Bold & Beautiful", desc: "Body care and skincare" },
+      { id: "cute-pretty", label: "Cute & Pretty", desc: "Baby and kids care" },
     ]
   }
 ];
@@ -97,18 +95,15 @@ const mainMenuItems = [
   { id: "home", label: "Home", path: "/shop/home" },
   { id: "about", label: "About", path: "/shop/about" },
   { id: "brands", label: "Brands", path: "/shop/brands" },
-  // { id: "distributors", label: "Distributors", path: "/shop/distributors" },
   { id: "contact", label: "Contact", path: "/shop/contact" },
 ];
 
 function MenuItems() {
   const navigate = useNavigate();
   const location = useLocation();
-  const [searchParams, setSearchParams] = useSearchParams();
   const [activeDropdown, setActiveDropdown] = useState(null);
   const dropdownRef = useRef(null);
 
-  // Close dropdowns when clicking outside
   useEffect(() => {
     const handleClickOutside = (event) => {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
@@ -126,13 +121,14 @@ function MenuItems() {
     setActiveDropdown(null);
   }
 
-  function handleCategoryClick(categoryId) {
-    sessionStorage.removeItem("filters");
-    const currentFilter = {
-      category: [categoryId],
-    };
-    sessionStorage.setItem("filters", JSON.stringify(currentFilter));
-    navigate(`/shop/listing?category=${categoryId}`);
+  function handleCategoryClick(categoryId, isSubcategory = false) {
+  sessionStorage.removeItem("filters");
+  const currentFilter = isSubcategory 
+    ? { subcategory: [categoryId] }
+    : { category: [categoryId] };
+    
+  sessionStorage.setItem("filters", JSON.stringify(currentFilter));
+  navigate(`/shop/listing?${isSubcategory ? 'subcategory' : 'category'}=${categoryId}`);
     setActiveDropdown(null);
   }
 
@@ -152,10 +148,6 @@ function MenuItems() {
     setActiveDropdown(activeDropdown === dropdown ? null : dropdown);
   };
 
-  const closeDropdown = () => {
-    setActiveDropdown(null);
-  };
-
   return (
     <nav className="flex flex-col lg:flex-row lg:items-center gap-6" ref={dropdownRef}>
       {mainMenuItems.map((menuItem) => (
@@ -168,10 +160,9 @@ function MenuItems() {
         </Label>
       ))}
       
-      {/* Enhanced Products Dropdown - Desktop */}
+      {/* Click-Based Products Dropdown - Desktop */}
       <div className="relative hidden lg:block">
         <button
-          onMouseEnter={() => setActiveDropdown('products')}
           onClick={() => toggleDropdown('products')}
           className="flex items-center gap-1 text-sm font-medium cursor-pointer hover:text-red-600 transition-colors"
         >
@@ -181,108 +172,94 @@ function MenuItems() {
         
         {activeDropdown === 'products' && (
           <div 
-  className="absolute top-full left-1/2 transform -translate-x-1/2 mt-2 w-screen max-w-6xl bg-white rounded-2xl shadow-2xl border border-gray-200 z-50 animate-in fade-in slide-in-from-top-3 duration-200 max-h-[80vh] overflow-y-auto"
-  onMouseLeave={() => setActiveDropdown(null)}
->
-  <div className="p-8">
-    {/* Horizontal Layout with Three Sections */}
-    <div className="grid grid-cols-3 gap-8">
-      {productCategories.map((category, categoryIndex) => (
-        <div key={categoryIndex} className={`p-6 rounded-xl bg-gradient-to-br ${category.bgGradient} border ${category.borderColor} flex flex-col h-full`}>
-          {/* Section Header */}
-          <div className="mb-6">
-            <div className="flex items-center justify-between mb-3">
-              <h3 className="text-lg font-bold text-gray-900 uppercase tracking-wide">
-                {category.name}
-              </h3>
-              {category.name === 'Cornells Brand' && (
-                <div className="flex items-center space-x-1 text-xs text-rose-600 font-medium bg-white px-2 py-1 rounded-full">
-                  <Globe className="w-3 h-3" />
-                  <span>Global</span>
-                </div>
-              )}
-            </div>
-            <p className="text-sm text-gray-600 leading-relaxed">{category.description}</p>
-          </div>
-          
-          {/* Products Grid - Scrollable */}
-          <div className="flex-1 overflow-y-auto max-h-80 pr-2">
-            <div className="space-y-3">
-              {category.items.map((item, itemIndex) => (
-                <button
-                  key={itemIndex}
-                  onClick={() => handleCategoryClick(item.id)}
-                  className="flex items-start space-x-3 p-3 rounded-lg hover:bg-white/70 transition-all duration-200 group border border-transparent hover:border-white/50 w-full text-left"
-                >
-                  <div className={`w-10 h-10 bg-gradient-to-br ${category.iconBg} rounded-lg flex items-center justify-center group-hover:scale-110 transition-transform duration-200 shadow-sm flex-shrink-0`}>
-                    <div className={category.iconColor}>
-                      {/* Icon placeholder - you can add specific icons here */}
-                      <div className="w-5 h-5 bg-current rounded-full opacity-70"></div>
+            className="absolute top-full left-1/2 transform -translate-x-1/2 mt-2 w-screen max-w-6xl bg-white rounded-2xl shadow-2xl border border-gray-200 z-50 animate-in fade-in slide-in-from-top-3 duration-200 max-h-[80vh] overflow-y-auto"
+          >
+            <div className="p-8">
+              {/* Three Column Layout */}
+              <div className="grid grid-cols-3 gap-8">
+                {productCategories.map((category, categoryIndex) => (
+                  <div key={categoryIndex} className={`p-6 rounded-xl bg-gradient-to-br ${category.bgGradient} border ${category.borderColor} flex flex-col h-full`}>
+                    {/* Section Header */}
+                    <div className="mb-6">
+                      <div className="flex items-center justify-between mb-3">
+                        <h3 className="text-lg font-bold text-gray-900 uppercase tracking-wide">
+                          {category.name}
+                        </h3>
+                        {category.name === 'Cornells Brand' && (
+                          <div className="flex items-center space-x-1 text-xs text-rose-600 font-medium bg-white px-2 py-1 rounded-full">
+                            <Globe className="w-3 h-3" />
+                            <span>Global</span>
+                          </div>
+                        )}
+                      </div>
+                      <p className="text-sm text-gray-600 leading-relaxed">{category.description}</p>
+                    </div>
+                    
+                    {/* Products Grid - Scrollable */}
+                    <div className="flex-1 overflow-y-auto max-h-80 pr-2">
+                      <div className="space-y-3">
+                        {category.items.map((item, itemIndex) => (
+                          <button
+                            key={itemIndex}
+                            onClick={() => handleCategoryClick(item.id)}
+                            className="flex items-start space-x-3 p-3 rounded-lg hover:bg-white/70 transition-all duration-200 group border border-transparent hover:border-white/50 w-full text-left"
+                          >
+                            <div className={`w-10 h-10 bg-gradient-to-br ${category.iconBg} rounded-lg flex items-center justify-center group-hover:scale-110 transition-transform duration-200 shadow-sm flex-shrink-0`}>
+                              <div className={category.iconColor}>
+                                <div className="w-5 h-5 bg-current rounded-full opacity-70"></div>
+                              </div>
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <p className={`font-semibold text-gray-900 group-${category.hoverColor} transition-colors text-sm leading-tight`}>
+                                {item.label}
+                              </p>
+                              <p className="text-xs text-gray-600 mt-1 line-clamp-2 leading-relaxed">{item.desc}</p>
+                            </div>
+                          </button>
+                        ))}
+                      </div>
                     </div>
                   </div>
-                  <div className="flex-1 min-w-0">
-                    <p className={`font-semibold text-gray-900 group-${category.hoverColor} transition-colors text-sm leading-tight`}>
-                      {item.label}
-                    </p>
-                    <p className="text-xs text-gray-600 mt-1 line-clamp-2 leading-relaxed">{item.desc}</p>
+                ))}
+              </div>
+              
+              {/* Centered CTA Buttons Section */}
+              <div className="mt-8 pt-8 border-t border-gray-200">
+                <div className="flex flex-col items-center space-y-4">
+                  <div className="text-center mb-4">
+                    <h4 className="text-lg font-bold text-gray-900">Explore Our Products</h4>
+                    <p className="text-sm text-gray-600 mt-1">Browse our complete catalog or discover our premium brands</p>
                   </div>
-                </button>
-              ))}
+                  
+                  <div className="flex gap-4 justify-center">
+                    <Button
+                      onClick={() => {
+                        setActiveDropdown(null);
+                        navigate('/shop/listing');
+                      }}
+                      className="bg-gradient-to-r from-red-600 to-red-700 text-white px-8 py-3 rounded-xl font-semibold hover:shadow-lg transition-all duration-300 transform hover:scale-105 text-sm min-w-[180px]"
+                    >
+                      View All Products
+                    </Button>
+                    
+                    <Button
+                      onClick={() => {
+                        setActiveDropdown(null);
+                        navigate('/shop/brands');
+                      }}
+                      className="bg-gradient-to-r from-orange-600 to-rose-600 text-white px-8 py-3 rounded-xl font-semibold hover:shadow-lg transition-all duration-300 transform hover:scale-105 text-sm min-w-[180px]"
+                    >
+                      Explore Saffron & Cornells
+                    </Button>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
-        </div>
-      ))}
-    </div>
-    
-    {/* Centered CTA Buttons Section */}
-    <div className="mt-8 pt-8 border-t border-gray-200">
-      <div className="flex flex-col items-center space-y-4">
-        <div className="text-center mb-4">
-          <h4 className="text-lg font-bold text-gray-900">Explore Our Products</h4>
-          <p className="text-sm text-gray-600 mt-1">Browse our complete catalog or discover our premium brands</p>
-        </div>
-        
-        <div className="flex gap-4 justify-center">
-          <Button
-            onClick={() => navigate('/shop/listing')}
-            className="bg-gradient-to-r from-red-600 to-red-700 text-white px-8 py-3 rounded-xl font-semibold hover:shadow-lg transition-all duration-300 transform hover:scale-105 text-sm min-w-[180px]"
-          >
-            View All Products
-          </Button>
-          
-          <Button
-            onClick={() => navigate('/shop/brands')}
-            className="bg-gradient-to-r from-orange-600 to-rose-600 text-white px-8 py-3 rounded-xl font-semibold hover:shadow-lg transition-all duration-300 transform hover:scale-105 text-sm min-w-[180px]"
-          >
-            Explore Saffron & Cornells
-          </Button>
-        </div>
-      </div>
-    </div>
-    
-    {/* Bottom Action Bar */}
-    <div className="mt-8 pt-6 border-t border-red-200">
-      <div className="flex items-center justify-between">
-        <div className="text-sm text-red-600">
-          <span className="font-medium">Need bulk orders?</span> Contact us for wholesale pricing
-        </div>
-        <div className="flex space-x-3">
-          <Button
-            onClick={() => handleNavigate("/shop/contact")}
-            variant="outline"
-            className="px-6 py-2 border border-red-300 text-red-700 rounded-lg font-medium hover:bg-red-50 transition-colors duration-200"
-          >
-            Contact Us
-          </Button>
-        </div>
-      </div>
-    </div>
-  </div>
-</div>
         )}
-        </div>
+      </div>
 
-      {/* Enhanced Products Dropdown - Mobile */}
+      {/* Click-Based Products Dropdown - Mobile */}
       <div className="lg:hidden">
         <button
           onClick={() => toggleDropdown('mobile-products')}
@@ -319,7 +296,10 @@ function MenuItems() {
                   ))}
                 </div>
                 <Button
-                  onClick={() => handleBrandPageClick(category.brand)}
+                  onClick={() => {
+                    setActiveDropdown(null);
+                    handleBrandPageClick(category.brand);
+                  }}
                   size="sm"
                   className={`w-full bg-gradient-to-r ${category.buttonGradient} text-white text-xs font-semibold`}
                 >
@@ -328,28 +308,6 @@ function MenuItems() {
                 </Button>
               </div>
             ))}
-            
-            {/* Mobile wholesale CTA */}
-            <div className="pt-4">
-              <div className="text-xs text-red-600 uppercase tracking-wide font-bold mb-3">Bulk Orders</div>
-              <div className="grid grid-cols-2 gap-2">
-                <Button
-                  onClick={() => handleNavigate("/shop/contact")}
-                  variant="outline"
-                  size="sm"
-                  className="text-xs"
-                >
-                  Contact Us
-                </Button>
-                <Button
-                  onClick={() => handleNavigate("/shop/wholesale-request")}
-                  size="sm"
-                  className="bg-gradient-to-r from-red-600 to-rose-600 text-white text-xs"
-                >
-                  Wholesale Quote
-                </Button>
-              </div>
-            </div>
           </div>
         )}
       </div>
@@ -405,7 +363,6 @@ function HeaderRightContent() {
 
   return (
     <div className="flex lg:items-center lg:flex-row flex-col gap-4">
-      {/* Guest Mode - Show Login/Register */}
       {!isAuthenticated ? (
         <div className="flex items-center gap-3">
           <Button
@@ -427,10 +384,8 @@ function HeaderRightContent() {
           </Button>
         </div>
       ) : (
-        /* Authenticated Mode - Show Cart, Wishlist, Account */
         <>
-          {/* Cart */}
-          <Sheet open={openCartSheet} onOpenChange={() => setOpenCartSheet(false)}>
+          <Sheet open={openCartSheet} onOpenChange={setOpenCartSheet}>
             <Button
               onClick={handleCartClick}
               variant="outline"
@@ -451,7 +406,6 @@ function HeaderRightContent() {
             />
           </Sheet>
 
-          {/* Wishlist */}
           <Sheet open={openWishlistSheet} onOpenChange={setOpenWishlistSheet}>
             <Button
               onClick={handleWishlistClick}
@@ -468,7 +422,6 @@ function HeaderRightContent() {
             <WishlistSheet setOpenWishlistSheet={setOpenWishlistSheet} />
           </Sheet>
 
-          {/* Account */}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Avatar className="bg-red-600 hover:cursor-pointer">

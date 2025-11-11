@@ -1,7 +1,7 @@
 /* eslint-disable react/no-unescaped-entities */
 /* eslint-disable no-unused-vars */
 /* eslint-disable react/jsx-key */
-// client/src/pages/shopping-view/home.jsx - Rekker Home Page
+// client/src/pages/shopping-view/home.jsx - Rekker Home with Organized Products
 import { Button } from "@/components/ui/button";
 import {
   ChevronLeftIcon,
@@ -38,9 +38,8 @@ const brandHeroSlides = [
     subtitle: "Quality Products for Every Need",
     description: "Kenya's trusted manufacturer and distributor of everyday essentials, serving retailers and institutions nationwide.",
     ctaText: "Explore Rekker Products",
-    ctaAction: "listing", // or "brand" for brand page
-    videoUrl: "/videos/rekker-hero-mp4.mp4", // 6-second video
-    //fallbackImage: "/images/rekker-hero.jpg",
+    ctaAction: "listing",
+    videoUrl: "/videos/rekker-hero-mp4.mp4",
     gradient: "from-red-900 via-red-800 to-rose-900",
     textColor: "text-white",
   },
@@ -52,7 +51,6 @@ const brandHeroSlides = [
     ctaText: "Explore Saffron Products",
     ctaAction: "saffron",
     videoUrl: "/videos/SaffronRange.mp4",
-    //fallbackImage: "/images/saffron-hero.jpg",
     gradient: "from-orange-600 via-orange-500 to-amber-600",
     textColor: "text-white",
   },
@@ -64,7 +62,6 @@ const brandHeroSlides = [
     ctaText: "Explore Cornells Products",
     ctaAction: "cornells",
     videoUrl: "/videos/CornellsB&BSemirange.mp4",
-    //fallbackImage: "/images/cornells-hero.jpg",
     gradient: "from-rose-600 via-pink-600 to-rose-700",
     textColor: "text-white",
   },
@@ -73,49 +70,49 @@ const brandHeroSlides = [
 // Rekker product categories
 const productCategories = [
   {
-    id: "stationery",
+    id: "rekker-stationery",
     name: "Stationery",
     description: "Complete office and school supplies",
     color: "from-red-500 to-rose-500",
   },
   {
-    id: "bags",
+    id: "rekker-bags-suitcases",
     name: "Bags & Suitcases",
     description: "Quality school bags and travel cases",
     color: "from-rose-500 to-red-600",
   },
   {
-    id: "toys",
+    id: "rekker-toys",
     name: "Toys",
     description: "Safe and educational toys",
     color: "from-red-600 to-rose-600",
   },
   {
-    id: "kitchenware",
+    id: "rekker-kitchenware",
     name: "Kitchenware",
     description: "Essential kitchen tools",
     color: "from-rose-600 to-red-700",
   },
   {
-    id: "padlocks",
+    id: "rekker-padlocks",
     name: "Padlocks",
     description: "Secure and durable locks",
     color: "from-red-700 to-rose-700",
   },
   {
-    id: "stuffed-toys",
+    id: "rekker-stuffed-toys",
     name: "Teddy Bears",
     description: "Soft and cuddly companions",
     color: "from-rose-500 to-red-500",
   },
   {
-    id: "party-items",
+    id: "rekker-party-items",
     name: "Party Items",
     description: "Complete party supplies",
     color: "from-red-500 to-rose-500",
   },
   {
-    id: "educational",
+    id: "rekker-educational",
     name: "Educational Items",
     description: "Art and craft supplies",
     color: "from-rose-600 to-red-700",
@@ -140,6 +137,57 @@ const brands = [
   },
 ];
 
+// Helper function to organize products by brand and category
+function organizeProductsByBrandAndCategory(products) {
+  const organized = {
+    cornells: {},
+    saffron: {},
+    rekker: {}
+  };
+
+  products.forEach(product => {
+    if (product.brand === 'cornells') {
+      if (!organized.cornells[product.category]) {
+        organized.cornells[product.category] = [];
+      }
+      organized.cornells[product.category].push(product);
+    } else if (product.brand === 'saffron') {
+      if (!organized.saffron[product.category]) {
+        organized.saffron[product.category] = [];
+      }
+      organized.saffron[product.category].push(product);
+    } else if (product.brand === 'rekker') {
+      if (!organized.rekker[product.category]) {
+        organized.rekker[product.category] = [];
+      }
+      organized.rekker[product.category].push(product);
+    }
+  });
+
+  return organized;
+}
+
+// Helper function to get category display name
+function getCategoryDisplayName(categoryId) {
+  const categoryMap = {
+    'cornells-super-foods': 'Super Foods',
+    'cornells-dark-beautiful': 'Dark & Beautiful',
+    'cornells-bold-beautiful': 'Bold & Beautiful',
+    'cornells-cute-pretty': 'Cute & Pretty',
+    'saffron-home-care-hygiene': 'Home Care & Hygiene',
+    'saffron-beauty-body-care': 'Beauty & Body Care',
+    'rekker-stationery': 'Stationery',
+    'rekker-bags-suitcases': 'School Bags & Suitcases',
+    'rekker-toys': 'Toys',
+    'rekker-kitchenware': 'Kitchenware',
+    'rekker-padlocks': 'Padlocks',
+    'rekker-stuffed-toys': 'Teddy Bears & Stuffed Toys',
+    'rekker-party-items': 'Party Items',
+    'rekker-educational': 'Educational Items',
+  };
+  return categoryMap[categoryId] || categoryId;
+}
+
 function ShoppingHome() {
   const [currentSlide, setCurrentSlide] = useState(0);
   const { productList, productDetails } = useSelector(
@@ -148,6 +196,7 @@ function ShoppingHome() {
   const [openDetailsDialog, setOpenDetailsDialog] = useState(false);
   const { user, isAuthenticated } = useSelector((state) => state.auth);
   const videoRefs = useRef([]);
+  const [organizedProducts, setOrganizedProducts] = useState({});
 
   const dispatch = useDispatch();
   const navigate = useNavigate();
@@ -166,17 +215,14 @@ function ShoppingHome() {
     sessionStorage.removeItem("filters");
     
     if (action === "listing") {
-      // Navigate to all products
       navigate('/shop/listing');
     } else if (action === "saffron") {
-      // Navigate to products page filtered for Saffron
       const saffronFilter = {
         brand: ["saffron"],
       };
       sessionStorage.setItem("filters", JSON.stringify(saffronFilter));
       navigate('/shop/listing?brand=saffron');
     } else if (action === "cornells") {
-      // Navigate to products page filtered for Cornells
       const cornellsFilter = {
         brand: ["cornells"],
       };
@@ -190,7 +236,6 @@ function ShoppingHome() {
   }
 
   function handleAddtoCart(getCurrentProductId) {
-    // Check if user is authenticated
     if (!isAuthenticated || !user) {
       toast({
         title: "Login Required",
@@ -219,11 +264,18 @@ function ShoppingHome() {
     if (productDetails !== null) setOpenDetailsDialog(true);
   }, [productDetails]);
 
+  // Organize products whenever productList changes
+  useEffect(() => {
+    if (productList && productList.length > 0) {
+      setOrganizedProducts(organizeProductsByBrandAndCategory(productList));
+    }
+  }, [productList]);
+
   // Video carousel with 6-second auto-advance
   useEffect(() => {
     const timer = setInterval(() => {
       setCurrentSlide((prevSlide) => (prevSlide + 1) % brandHeroSlides.length);
-    }, 6000); // 6 seconds per slide
+    }, 6000);
     return () => clearInterval(timer);
   }, []);
 
@@ -258,7 +310,7 @@ function ShoppingHome() {
 
   return (
     <div className="flex flex-col min-h-screen bg-gradient-to-br from-gray-50 to-red-50/30">
-      {/* Hero Section with Brand Video Carousel */}
+      {/* Hero Section */}
       <div className="relative w-full h-[600px] overflow-hidden">
         {brandHeroSlides.map((slide, index) => (
           <div
@@ -267,28 +319,18 @@ function ShoppingHome() {
               index === currentSlide ? "opacity-100 z-10" : "opacity-0 z-0"
             }`}
           >
-            {/* Video Background */}
             <video
               ref={(el) => (videoRefs.current[index] = el)}
               className="absolute inset-0 w-full h-full object-cover"
               muted
               loop
               playsInline
-              poster={slide.fallbackImage}
             >
               <source src={slide.videoUrl} type="video/mp4" />
-              {/* Fallback to image if video fails */}
-              <img
-                src={slide.fallbackImage}
-                alt={`${slide.title} background`}
-                className="w-full h-full object-cover"
-              />
             </video>
 
-            {/* Gradient Overlay */}
             <div className={`absolute inset-0 bg-gradient-to-r ${slide.gradient} opacity-80`}></div>
 
-            {/* Content */}
             <div className="absolute inset-0 flex items-center z-20">
               <div className="container mx-auto px-6">
                 <div className="max-w-2xl">
@@ -370,7 +412,6 @@ function ShoppingHome() {
               to premium branded solutions, we serve retailers, wholesalers, and institutions across the region.
             </p>
 
-            {/* Stats */}
             <div className="grid md:grid-cols-4 gap-8">
               <div className="text-center group">
                 <div className="w-16 h-16 bg-gradient-to-r from-red-100 to-rose-100 rounded-full flex items-center justify-center mx-auto mb-4 group-hover:shadow-lg transition-all">
@@ -446,28 +487,111 @@ function ShoppingHome() {
         </div>
       </section>
 
-      {/* Featured Products */}
-      {productList && productList.length > 0 && (
+      {/* Organized Featured Products by Brand and Category */}
+      {Object.keys(organizedProducts).length > 0 && (
         <section className="py-20 bg-white">
           <div className="container mx-auto px-6">
-            <div className="text-center mb-16">
-              <h2 className="text-4xl font-bold text-gray-900 mb-6">Featured Products</h2>
-              <div className="w-24 h-1 bg-gradient-to-r from-red-500 to-rose-500 mx-auto mb-8"></div>
-              <p className="text-xl text-gray-600 max-w-3xl mx-auto">
-                Discover our most popular and best-selling products
-              </p>
-            </div>
+            {/* Cornells Products */}
+            {organizedProducts.cornells && Object.keys(organizedProducts.cornells).length > 0 && (
+              <div className="mb-20">
+                <div className="text-center mb-12">
+                  <h2 className="text-4xl font-bold text-gray-900 mb-4">Cornells Collection</h2>
+                  <p className="text-xl text-gray-600 max-w-3xl mx-auto">
+                    Premium beauty and wellness products exclusively distributed by Rekker
+                  </p>
+                </div>
+                
+                {/* Display each Cornells category */}
+                {["cornells-super-foods", "cornells-dark-beautiful", "cornells-bold-beautiful", "cornells-cute-pretty"].map(categoryId => (
+                  organizedProducts.cornells[categoryId] && organizedProducts.cornells[categoryId].length > 0 && (
+                    <div key={categoryId} className="mb-16">
+                      <h3 className="text-2xl font-bold text-gray-900 mb-6 flex items-center gap-3">
+                        <div className="w-8 h-8 bg-gradient-to-r from-rose-500 to-pink-500 rounded-lg"></div>
+                        {getCategoryDisplayName(categoryId)}
+                      </h3>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+                        {organizedProducts.cornells[categoryId].slice(0, 8).map((productItem) => (
+                          <ShoppingProductTile
+                            key={productItem._id}
+                            handleGetProductDetails={handleGetProductDetails}
+                            product={productItem}
+                            handleAddtoCart={handleAddtoCart}
+                          />
+                        ))}
+                      </div>
+                    </div>
+                  )
+                ))}
+              </div>
+            )}
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
-              {productList.slice(0, 8).map((productItem) => (
-                <ShoppingProductTile
-                  key={productItem._id}
-                  handleGetProductDetails={handleGetProductDetails}
-                  product={productItem}
-                  handleAddtoCart={handleAddtoCart}
-                />
-              ))}
-            </div>
+            {/* Saffron Products */}
+            {organizedProducts.saffron && Object.keys(organizedProducts.saffron).length > 0 && (
+              <div className="mb-20">
+                <div className="text-center mb-12">
+                  <h2 className="text-4xl font-bold text-gray-900 mb-4">Saffron Brand</h2>
+                  <p className="text-xl text-gray-600 max-w-3xl mx-auto">
+                    Premium cleaning and personal care solutions manufactured by Rekker
+                  </p>
+                </div>
+                
+                {/* Display each Saffron category */}
+                {["saffron-home-care-hygiene", "saffron-beauty-body-care"].map(categoryId => (
+                  organizedProducts.saffron[categoryId] && organizedProducts.saffron[categoryId].length > 0 && (
+                    <div key={categoryId} className="mb-16">
+                      <h3 className="text-2xl font-bold text-gray-900 mb-6 flex items-center gap-3">
+                        <div className="w-8 h-8 bg-gradient-to-r from-orange-500 to-red-500 rounded-lg"></div>
+                        {getCategoryDisplayName(categoryId)}
+                      </h3>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+                        {organizedProducts.saffron[categoryId].slice(0, 8).map((productItem) => (
+                          <ShoppingProductTile
+                            key={productItem._id}
+                            handleGetProductDetails={handleGetProductDetails}
+                            product={productItem}
+                            handleAddtoCart={handleAddtoCart}
+                          />
+                        ))}
+                      </div>
+                    </div>
+                  )
+                ))}
+              </div>
+            )}
+
+            {/* Rekker Products */}
+            {organizedProducts.rekker && Object.keys(organizedProducts.rekker).length > 0 && (
+              <div>
+                <div className="text-center mb-12">
+                  <h2 className="text-4xl font-bold text-gray-900 mb-4">Rekker Products</h2>
+                  <p className="text-xl text-gray-600 max-w-3xl mx-auto">
+                    Quality essentials for every need
+                  </p>
+                </div>
+                
+                {/* Display each Rekker category */}
+                {Object.entries(organizedProducts.rekker).map(([categoryId, products]) => (
+                  products && products.length > 0 && (
+                    <div key={categoryId} className="mb-16">
+                      <h3 className="text-2xl font-bold text-gray-900 mb-6 flex items-center gap-3">
+                        <div className="w-8 h-8 bg-gradient-to-r from-red-500 to-rose-500 rounded-lg"></div>
+                        {getCategoryDisplayName(categoryId)}
+                      </h3>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+                        {products.slice(0, 8).map((productItem) => (
+                          <ShoppingProductTile
+                            key={productItem._id}
+                            handleGetProductDetails={handleGetProductDetails}
+                            product={productItem}
+                            handleAddtoCart={handleAddtoCart}
+                          />
+                        ))}
+                      </div>
+                    </div>
+                  )
+                ))}
+              </div>
+            )}
           </div>
         </section>
       )}
@@ -535,7 +659,7 @@ function ShoppingHome() {
               </div>
               <h3 className="text-2xl font-bold text-gray-900 mb-4">Quality Assured</h3>
               <p className="text-gray-600 leading-relaxed">
-                Rigorous quality control processes ensure every product meets international standards.
+                Rigorous quality control ensures every product meets international standards and customer expectations.
               </p>
             </div>
 
@@ -545,7 +669,7 @@ function ShoppingHome() {
               </div>
               <h3 className="text-2xl font-bold text-gray-900 mb-4">Reliable Distribution</h3>
               <p className="text-gray-600 leading-relaxed">
-                Comprehensive distribution network ensuring timely delivery across Kenya.
+                Comprehensive distribution network ensuring timely delivery across all 47 counties in Kenya.
               </p>
             </div>
 
@@ -555,7 +679,7 @@ function ShoppingHome() {
               </div>
               <h3 className="text-2xl font-bold text-gray-900 mb-4">Customer First</h3>
               <p className="text-gray-600 leading-relaxed">
-                Dedicated customer service providing professional support from selection to after-sales.
+                Dedicated customer service providing professional support from selection to after-sales care.
               </p>
             </div>
           </div>
@@ -568,7 +692,7 @@ function ShoppingHome() {
           <div className="max-w-4xl mx-auto">
             <h2 className="text-4xl font-bold text-white mb-6">Ready to Shop with Rekker?</h2>
             <p className="text-xl text-red-100 mb-10 leading-relaxed">
-              Browse our extensive catalog and enjoy quality products delivered to your doorstep.
+              Browse our extensive catalog and enjoy quality products delivered to your doorstep across Kenya.
             </p>
 
             <div className="flex flex-col sm:flex-row gap-6 justify-center">
