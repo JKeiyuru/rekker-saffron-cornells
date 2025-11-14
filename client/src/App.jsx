@@ -13,7 +13,7 @@ import AuthLayout from "./components/auth/layout";
 import AdminLayout from "./components/admin-view/layout";
 import ShoppingLayout from "./components/shopping-view/layout";
 import CheckAuth from "./components/common/check-auth";
-import SpectacularLoader from "./components/common/spectacular-loader";
+import LuxuryLoader from "./components/common/spectacular-loader";
 
 // Pages - Lazy Load for Performance
 const AuthLogin = lazy(() => import("./pages/auth/login"));
@@ -22,7 +22,7 @@ const AdminDashboard = lazy(() => import("./pages/admin-view/dashboard"));
 const AdminProducts = lazy(() => import("./pages/admin-view/products"));
 const AdminOrders = lazy(() => import("./pages/admin-view/orders"));
 const AdminFeatures = lazy(() => import("./pages/admin-view/features"));
-const ShoppingHome = lazy(() => import("./pages/shopping-view/home"));
+const LuxuryHome = lazy(() => import("./pages/shopping-view/home"));
 const ShoppingListing = lazy(() => import("./pages/shopping-view/listing"));
 const ShoppingCheckout = lazy(() => import("./pages/shopping-view/checkout"));
 const ShoppingAccount = lazy(() => import("./pages/shopping-view/account"));
@@ -41,7 +41,7 @@ const UnauthPage = lazy(() => import("./pages/unauth-page"));
 
 // Loading Fallback Component
 function LoadingFallback() {
-  return <SpectacularLoader />;
+  return <LuxuryLoader />;
 }
 
 // Scroll to top component
@@ -120,7 +120,7 @@ function App() {
   // Show loader while initializing
   if (!firebaseInitialized || isLoading) {
     console.log('⏳ App: Showing loader...', { firebaseInitialized, isLoading });
-    return <SpectacularLoader />;
+    return <LuxuryLoader />;
   }
 
   console.log('🎯 App render - Auth State:', { 
@@ -178,7 +178,7 @@ function App() {
           {/* Shopping Routes */}
           <Route path="/shop" element={<ShoppingLayout />}>
             {/* Public Routes */}
-            <Route path="home" element={<ShoppingHome />} />
+            <Route path="home" element={<LuxuryHome />} />
             <Route path="about" element={<About />} />
             <Route path="services" element={<Services />} />
             <Route path="distributors" element={<Distributors />} />

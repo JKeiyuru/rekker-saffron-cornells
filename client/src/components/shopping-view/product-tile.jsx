@@ -1,12 +1,12 @@
+// client/src/components/shopping-view/luxury-product-tile.jsx
 /* eslint-disable react/no-unknown-property */
 /* eslint-disable no-unused-vars */
 /* eslint-disable react/prop-types */
-// client/src/components/shopping-view/product-tile.jsx - Rekker Product Tile with Guest Mode
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { Card, CardContent, CardFooter } from "../ui/card";
 import { Button } from "../ui/button";
 import { Badge } from "../ui/badge";
-import { Heart, ShoppingCart, Eye, Star, Sparkles } from "lucide-react";
+import { Heart, ShoppingCart, Eye, Star, Sparkles, Zap } from "lucide-react";
 import { useDispatch, useSelector } from "react-redux";
 import {
   addToWishlist,
@@ -21,7 +21,7 @@ import {
   subcategoryOptionsMap,
 } from "@/config";
 
-function ShoppingProductTile({
+function LuxuryProductTile({
   product,
   handleGetProductDetails,
   handleAddtoCart,
@@ -37,6 +37,17 @@ function ShoppingProductTile({
   const isWishlisted = wishlistItems.some((item) => item._id === product._id);
   const [isHovered, setIsHovered] = useState(false);
   const [imageLoaded, setImageLoaded] = useState(false);
+  const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 });
+  const cardRef = useRef(null);
+
+  // Magnetic hover effect
+  const handleMouseMove = (e) => {
+    if (!cardRef.current) return;
+    const rect = cardRef.current.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+    setMousePosition({ x, y });
+  };
 
   const toggleWishlist = async (e) => {
     e.stopPropagation();
@@ -55,12 +66,12 @@ function ShoppingProductTile({
       if (isWishlisted) {
         await dispatch(removeFromWishlist({ userId: user.id, productId: product._id }));
         toast({
-          title: "Product removed from wishlist",
+          title: "Removed from wishlist",
         });
       } else {
         await dispatch(addToWishlist({ userId: user.id, productId: product._id }));
         toast({
-          title: "Product added to wishlist",
+          title: "Added to wishlist",
         });
       }
 
@@ -89,7 +100,6 @@ function ShoppingProductTile({
     handleAddtoCart(product?._id, product?.totalStock);
   };
 
-  // Get brand gradient
   const getBrandGradient = (brand) => {
     const gradients = {
       rekker: 'from-red-600 via-rose-500 to-red-600',
@@ -99,46 +109,49 @@ function ShoppingProductTile({
     return gradients[brand] || 'from-gray-600 via-gray-500 to-gray-600';
   };
 
-  // Get brand badge color
-  const getBrandBadgeColor = (brand) => {
-    const colors = {
-      rekker: "bg-red-600 hover:bg-red-700",
-      saffron: "bg-orange-600 hover:bg-orange-700",
-      cornells: "bg-rose-600 hover:bg-rose-700",
-    };
-    return colors[brand] || "bg-gray-600 hover:bg-gray-700";
-  };
-
   const discountPercentage = product?.salePrice > 0 
     ? Math.round(((product?.price - product?.salePrice) / product?.price) * 100)
     : 0;
 
   return (
     <div
+      ref={cardRef}
       className="group relative"
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
+      onMouseMove={handleMouseMove}
+      style={{
+        transform: isHovered 
+          ? `perspective(1000px) rotateX(${(mousePosition.y - 150) / 30}deg) rotateY(${(mousePosition.x - 150) / 30}deg) translateZ(20px)`
+          : 'perspective(1000px) rotateX(0) rotateY(0) translateZ(0)',
+        transition: 'transform 0.3s cubic-bezier(0.23, 1, 0.32, 1)',
+      }}
     >
-      {/* Main card with glass morphism effect */}
-      <Card className="relative bg-white/80 backdrop-blur-xl rounded-3xl overflow-hidden shadow-lg hover:shadow-2xl transition-all duration-700 transform hover:-translate-y-2 border border-white/20">
+      {/* Hover glow effect */}
+      <div 
+        className={`absolute -inset-0.5 bg-gradient-to-r ${getBrandGradient(product?.brand)} rounded-3xl blur-xl opacity-0 group-hover:opacity-30 transition-all duration-700 -z-10`}
+      />
+
+      {/* Main card */}
+      <Card className="relative bg-white/95 backdrop-blur-xl rounded-3xl overflow-hidden shadow-lg hover:shadow-2xl transition-all duration-700 border border-gray-100 group-hover:border-white">
         
-        {/* Animated gradient border */}
-        <div className={`absolute inset-0 bg-gradient-to-br ${getBrandGradient(product?.brand)} opacity-0 group-hover:opacity-100 transition-opacity duration-500 blur-xl -z-10`} />
+        {/* Animated gradient border on hover */}
+        <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-700">
+          <div className={`absolute inset-0 bg-gradient-to-r ${getBrandGradient(product?.brand)} opacity-20 blur-xl`} />
+        </div>
         
-        {/* Top badges section */}
+        {/* Top badges */}
         <div className="absolute top-4 left-4 right-4 flex justify-between items-start z-20">
-          {/* Brand badge with shine effect */}
-          <Badge className={`relative px-4 py-2 rounded-full bg-gradient-to-r ${getBrandGradient(product?.brand)} text-white text-xs font-bold uppercase tracking-wider shadow-lg overflow-hidden border-0`}>
+          {/* Brand badge */}
+          <Badge className={`relative px-4 py-2 rounded-full bg-gradient-to-r ${getBrandGradient(product?.brand)} text-white text-xs font-bold uppercase tracking-wider shadow-lg border-0 overflow-hidden`}>
             <span className="relative z-10">{brandOptionsMap[product?.brand]}</span>
-            <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent animate-shimmer" />
+            <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent opacity-0 group-hover:opacity-100 animate-shimmer" />
           </Badge>
 
-          {/* Wishlist button with sophisticated hover */}
-          <Button
-            variant="ghost"
-            size="icon"
-            className="group/wish relative w-10 h-10 rounded-full bg-white/90 backdrop-blur-md shadow-lg hover:shadow-xl transition-all duration-300 flex items-center justify-center border border-white/50 hover:scale-110"
+          {/* Wishlist button */}
+          <button
             onClick={toggleWishlist}
+            className="relative w-11 h-11 rounded-full bg-white/95 backdrop-blur-md shadow-lg hover:shadow-xl transition-all duration-300 flex items-center justify-center border border-white/50 hover:scale-110 group/wish"
           >
             <Heart
               className={`w-5 h-5 transition-all duration-300 ${
@@ -150,15 +163,15 @@ function ShoppingProductTile({
             {isWishlisted && (
               <div className="absolute inset-0 rounded-full bg-red-500/20 animate-ping" />
             )}
-          </Button>
+          </button>
         </div>
 
         {/* Discount badge */}
         {discountPercentage > 0 && (
-          <div className="absolute top-4 right-4 z-20">
-            <Badge className="relative px-3 py-1.5 rounded-full bg-gradient-to-r from-green-500 to-emerald-500 text-white text-xs font-bold shadow-lg overflow-hidden border-0">
-              <span className="relative z-10 flex items-center gap-1">
-                <Sparkles className="w-3 h-3" />
+          <div className="absolute top-4 right-16 z-20">
+            <Badge className="relative px-3 py-2 rounded-2xl bg-gradient-to-r from-emerald-500 to-green-500 text-white text-sm font-bold shadow-lg border-0 overflow-hidden">
+              <span className="relative z-10 flex items-center gap-1.5">
+                <Zap className="w-4 h-4" />
                 {discountPercentage}% OFF
               </span>
               <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent animate-shimmer" />
@@ -166,9 +179,9 @@ function ShoppingProductTile({
           </div>
         )}
 
-        {/* Image section with parallax effect */}
+        {/* Image section */}
         <div 
-          className="relative aspect-square overflow-hidden bg-gradient-to-br from-gray-100 to-gray-50 cursor-pointer"
+          className="relative aspect-square overflow-hidden bg-gradient-to-br from-gray-50 to-gray-100 cursor-pointer"
           onClick={() => handleGetProductDetails(product?._id)}
         >
           {!imageLoaded && (
@@ -182,41 +195,40 @@ function ShoppingProductTile({
             alt={product?.title}
             onLoad={() => setImageLoaded(true)}
             className={`w-full h-full object-cover transition-all duration-700 ${
-              isHovered ? 'scale-110' : 'scale-100'
+              isHovered ? 'scale-110 rotate-2' : 'scale-100 rotate-0'
             } ${imageLoaded ? 'opacity-100' : 'opacity-0'}`}
           />
 
-          {/* Overlay gradient on hover */}
-          <div className={`absolute inset-0 bg-gradient-to-t from-black/60 via-black/0 to-black/0 transition-opacity duration-500 ${
+          {/* Gradient overlay on hover */}
+          <div className={`absolute inset-0 bg-gradient-to-t from-black/70 via-black/0 to-black/0 transition-opacity duration-500 ${
             isHovered ? 'opacity-100' : 'opacity-0'
           }`} />
 
           {/* Stock indicator */}
           {product?.totalStock < 10 && product?.totalStock > 0 && (
             <div className="absolute bottom-4 left-4">
-              <Badge className="px-3 py-1.5 rounded-full bg-orange-500/90 backdrop-blur-md text-white text-xs font-semibold shadow-lg border-0">
+              <Badge className="px-3 py-2 rounded-full bg-orange-500/95 backdrop-blur-md text-white text-xs font-semibold shadow-lg border-0">
                 Only {product?.totalStock} left
               </Badge>
             </div>
           )}
 
-          {/* Out of Stock Badge */}
           {product?.totalStock === 0 && (
             <div className="absolute bottom-4 left-4">
-              <Badge className="px-3 py-1.5 rounded-full bg-red-600/90 backdrop-blur-md text-white text-xs font-semibold shadow-lg border-0">
+              <Badge className="px-3 py-2 rounded-full bg-red-600/95 backdrop-blur-md text-white text-xs font-semibold shadow-lg border-0">
                 Out of Stock
               </Badge>
             </div>
           )}
 
-          {/* Quick actions on hover */}
-          <div className={`absolute inset-x-4 bottom-4 flex gap-2 transition-all duration-500 ${
+          {/* Quick action button */}
+          <div className={`absolute inset-x-4 bottom-4 transition-all duration-500 ${
             isHovered ? 'translate-y-0 opacity-100' : 'translate-y-8 opacity-0'
           }`}>
             <Button
               variant="secondary"
               size="sm"
-              className="flex-1 bg-white/95 backdrop-blur-md hover:bg-white text-gray-900 py-3 rounded-xl font-semibold text-sm shadow-lg hover:shadow-xl transition-all duration-300 flex items-center justify-center gap-2 group/btn"
+              className="w-full bg-white/95 backdrop-blur-md hover:bg-white text-gray-900 py-3 rounded-2xl font-semibold text-sm shadow-lg hover:shadow-xl transition-all duration-300 flex items-center justify-center gap-2 group/btn"
               onClick={(e) => {
                 e.stopPropagation();
                 handleGetProductDetails(product?._id);
@@ -228,23 +240,23 @@ function ShoppingProductTile({
           </div>
         </div>
 
-        {/* Product details section */}
-        <CardContent className="p-6 space-y-4">
-          {/* Category Tags */}
-          <div className="flex flex-wrap gap-1">
+        {/* Product details */}
+        <CardContent className="p-6 space-y-4 relative z-10">
+          {/* Category tags */}
+          <div className="flex flex-wrap gap-2">
             {product?.category && (
-              <span className="text-xs bg-gray-100 text-gray-600 px-2 py-1 rounded-full font-medium">
+              <span className="text-xs bg-gray-100 text-gray-700 px-3 py-1.5 rounded-full font-medium">
                 {categoryOptionsMap[product?.category]}
               </span>
             )}
             {product?.subcategory && (
-              <span className="text-xs bg-gray-100 text-gray-600 px-2 py-1 rounded-full font-medium">
+              <span className="text-xs bg-gray-100 text-gray-700 px-3 py-1.5 rounded-full font-medium">
                 {subcategoryOptionsMap[product?.subcategory]}
               </span>
             )}
           </div>
 
-          {/* Title with elegant truncation */}
+          {/* Title */}
           <h3 
             className="text-lg font-bold text-gray-900 leading-tight line-clamp-2 group-hover:text-red-600 transition-colors duration-300 min-h-[3.5rem] cursor-pointer"
             onClick={() => handleGetProductDetails(product?._id)}
@@ -252,14 +264,14 @@ function ShoppingProductTile({
             {product?.title}
           </h3>
 
-          {/* Rating section */}
+          {/* Rating */}
           {product?.averageReview > 0 && (
             <div className="flex items-center gap-2">
               <div className="flex">
                 {[...Array(5)].map((_, i) => (
                   <Star
                     key={i}
-                    className={`w-4 h-4 ${
+                    className={`w-4 h-4 transition-all ${
                       i < Math.round(product?.averageReview)
                         ? 'text-amber-400 fill-amber-400'
                         : 'text-gray-300 fill-gray-300'
@@ -273,8 +285,8 @@ function ShoppingProductTile({
             </div>
           )}
 
-          {/* Price section with animation */}
-          <div className="flex items-center justify-between pt-2 border-t border-gray-100">
+          {/* Price section */}
+          <div className="flex items-center justify-between pt-3 border-t border-gray-100">
             <div className="flex items-baseline gap-2">
               {product?.salePrice > 0 ? (
                 <>
@@ -306,38 +318,23 @@ function ShoppingProductTile({
           ) : (
             <Button
               onClick={handleAddToCartClick}
-              className={`w-full bg-gradient-to-r ${getBrandGradient(product?.brand)} text-white py-3.5 rounded-xl font-bold text-sm shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-[1.02] active:scale-95 flex items-center justify-center gap-2 group/cart overflow-hidden relative`}
+              className={`w-full bg-gradient-to-r ${getBrandGradient(product?.brand)} text-white py-3.5 rounded-2xl font-bold text-sm shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-[1.02] active:scale-95 flex items-center justify-center gap-2 group/cart overflow-hidden relative`}
             >
               <span className="relative z-10 flex items-center gap-2">
                 <ShoppingCart className="w-5 h-5 group-hover/cart:scale-110 transition-transform" />
                 Add to Cart
               </span>
-              <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent group-hover/cart:animate-shimmer" />
+              <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent translate-x-[-200%] group-hover/cart:translate-x-[200%] transition-transform duration-700" />
             </Button>
           )}
         </CardFooter>
 
-        {/* Decorative corner elements */}
+        {/* Corner decoration */}
         <div className="absolute top-0 right-0 w-20 h-20 bg-gradient-to-br from-red-500/5 to-transparent rounded-bl-full opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
         <div className="absolute bottom-0 left-0 w-20 h-20 bg-gradient-to-tr from-rose-500/5 to-transparent rounded-tr-full opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
       </Card>
-
-      <style jsx>{`
-        @keyframes shimmer {
-          0% {
-            transform: translateX(-100%);
-          }
-          100% {
-            transform: translateX(200%);
-          }
-        }
-
-        .animate-shimmer {
-          animation: shimmer 2s infinite;
-        }
-      `}</style>
     </div>
   );
 }
 
-export default ShoppingProductTile;
+export default LuxuryProductTile;

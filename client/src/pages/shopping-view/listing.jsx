@@ -2,7 +2,7 @@
 // client/src/pages/shopping-view/listing.jsx - Optimized Product Listing
 import ProductFilter from "@/components/shopping-view/filter";
 import ProductDetailsDialog from "@/components/shopping-view/product-details";
-import ShoppingProductTile from "@/components/shopping-view/product-tile";
+import LuxuryProductTile from "@/components/shopping-view/product-tile";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -319,7 +319,7 @@ function ShoppingListing() {
             {productList && productList.length > 0 ? (
               <div className={`grid ${gridClasses[gridView]} gap-6`}>
                 {productList.map((productItem) => (
-                  <ShoppingProductTile
+                  <LuxuryProductTile
                     key={productItem._id}
                     handleGetProductDetails={handleGetProductDetails}
                     product={productItem}

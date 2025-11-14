@@ -1,121 +1,187 @@
+// client/src/components/common/luxury-loader.jsx
 /* eslint-disable no-unused-vars */
 /* eslint-disable react/no-unknown-property */
 import React, { useState, useEffect } from 'react';
 
-const SpectacularLoader = () => {
+const LuxuryLoader = () => {
   const [progress, setProgress] = useState(0);
-  const [loadingText, setLoadingText] = useState('Preparing your experience');
+  const [stage, setStage] = useState('loading'); // loading, transitioning, complete
 
   useEffect(() => {
-    const interval = setInterval(() => {
+    // Smooth progress animation
+    const duration = 2500;
+    const steps = 60;
+    const increment = 100 / steps;
+    const stepTime = duration / steps;
+
+    const timer = setInterval(() => {
       setProgress(prev => {
-        if (prev >= 100) {
-          clearInterval(interval);
+        const next = prev + increment;
+        if (next >= 100) {
+          clearInterval(timer);
+          setTimeout(() => setStage('transitioning'), 200);
+          setTimeout(() => setStage('complete'), 800);
           return 100;
         }
-        return prev + 2;
+        return next;
       });
-    }, 30);
+    }, stepTime);
 
-    const textInterval = setInterval(() => {
-      const texts = [
-        'Preparing your experience',
-        'Loading excellence',
-        'Crafting perfection',
-        'Almost there'
-      ];
-      setLoadingText(texts[Math.floor(Math.random() * texts.length)]);
-    }, 2000);
-
-    return () => {
-      clearInterval(interval);
-      clearInterval(textInterval);
-    };
+    return () => clearInterval(timer);
   }, []);
 
+  if (stage === 'complete') return null;
+
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-gradient-to-br from-slate-950 via-red-950 to-slate-950">
-      {/* Animated background particles */}
-      <div className="absolute inset-0 overflow-hidden">
-        {[...Array(50)].map((_, i) => (
-          <div
-            key={i}
-            className="absolute rounded-full bg-gradient-to-r from-red-500/20 to-rose-500/20 animate-float"
-            style={{
-              left: `${Math.random() * 100}%`,
-              top: `${Math.random() * 100}%`,
-              width: `${Math.random() * 100 + 50}px`,
-              height: `${Math.random() * 100 + 50}px`,
-              animationDelay: `${Math.random() * 5}s`,
-              animationDuration: `${Math.random() * 10 + 10}s`,
-            }}
-          />
-        ))}
+    <div className={`fixed inset-0 z-[9999] transition-all duration-700 ${
+      stage === 'transitioning' ? 'opacity-0 scale-110' : 'opacity-100 scale-100'
+    }`}>
+      {/* Animated gradient background */}
+      <div className="absolute inset-0 bg-gradient-to-br from-slate-950 via-red-950 to-slate-950">
+        {/* Animated mesh gradient overlay */}
+        <div className="absolute inset-0 opacity-30">
+          <div className="absolute top-0 left-1/4 w-96 h-96 bg-red-500 rounded-full mix-blend-multiply filter blur-3xl animate-blob" />
+          <div className="absolute top-0 right-1/4 w-96 h-96 bg-rose-500 rounded-full mix-blend-multiply filter blur-3xl animate-blob animation-delay-2000" />
+          <div className="absolute bottom-0 left-1/3 w-96 h-96 bg-pink-500 rounded-full mix-blend-multiply filter blur-3xl animate-blob animation-delay-4000" />
+        </div>
+
+        {/* Particle effects */}
+        <div className="absolute inset-0 overflow-hidden">
+          {[...Array(50)].map((_, i) => (
+            <div
+              key={i}
+              className="absolute rounded-full bg-white/20"
+              style={{
+                width: `${Math.random() * 4 + 1}px`,
+                height: `${Math.random() * 4 + 1}px`,
+                left: `${Math.random() * 100}%`,
+                top: `${Math.random() * 100}%`,
+                animation: `float ${Math.random() * 10 + 10}s linear infinite`,
+                animationDelay: `${Math.random() * 5}s`,
+              }}
+            />
+          ))}
+        </div>
       </div>
 
-      {/* Main loader content */}
-      <div className="relative z-10 flex flex-col items-center space-y-8">
-        {/* Logo area with sophisticated animation */}
-        <div className="relative">
-          {/* Outer rotating ring */}
-          <div className="absolute inset-0 -m-8">
-            <div className="w-32 h-32 border-2 border-red-500/30 rounded-full animate-spin-slow" />
+      {/* Main content */}
+      <div className="relative h-full flex flex-col items-center justify-center px-4">
+        {/* Logo with 3D effect */}
+        <div className="relative mb-12 group">
+          {/* Glow effect */}
+          <div className="absolute inset-0 -m-8 bg-gradient-to-r from-red-500/30 via-rose-500/30 to-red-500/30 rounded-full blur-3xl opacity-75 group-hover:opacity-100 transition-opacity duration-1000 animate-pulse" />
+          
+          {/* Rotating rings */}
+          <div className="absolute inset-0 -m-12">
+            <div className="w-full h-full border-2 border-red-500/30 rounded-full animate-spin-slow" />
+          </div>
+          <div className="absolute inset-0 -m-10">
+            <div className="w-full h-full border-2 border-rose-500/40 rounded-full animate-spin-reverse" />
           </div>
           
-          {/* Middle pulsing ring */}
-          <div className="absolute inset-0 -m-6">
-            <div className="w-28 h-28 border-2 border-rose-500/50 rounded-full animate-pulse" />
-          </div>
-
-          {/* Logo container */}
-          <div className="relative w-16 h-16 bg-gradient-to-br from-red-600 via-rose-600 to-red-700 rounded-2xl flex items-center justify-center shadow-2xl shadow-red-500/50 animate-float">
-            <span className="text-white font-bold text-3xl tracking-wider">R</span>
+          {/* Main logo */}
+          <div className="relative w-32 h-32 bg-gradient-to-br from-red-600 via-rose-600 to-red-700 rounded-3xl flex items-center justify-center shadow-2xl shadow-red-500/50 transform transition-transform duration-500 group-hover:scale-110">
+            <span className="text-white font-bold text-6xl tracking-wider">R</span>
             
             {/* Shine effect */}
-            <div className="absolute inset-0 rounded-2xl bg-gradient-to-tr from-transparent via-white/20 to-transparent animate-shine" />
-          </div>
-
-          {/* Inner glowing ring */}
-          <div className="absolute inset-0 -m-4">
-            <div className="w-24 h-24 border border-red-400/60 rounded-full animate-ping-slow" />
+            <div className="absolute inset-0 rounded-3xl bg-gradient-to-tr from-transparent via-white/30 to-transparent animate-shine" />
+            
+            {/* Inner glow */}
+            <div className="absolute inset-2 rounded-2xl bg-gradient-to-br from-white/20 to-transparent" />
           </div>
         </div>
 
-        {/* Brand name with elegant reveal */}
-        <div className="flex flex-col items-center space-y-2 overflow-hidden">
-          <h1 className="text-5xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-red-400 via-rose-300 to-red-400 animate-gradient-x tracking-wider">
-            REKKER
+        {/* Brand name with letter animation */}
+        <div className="mb-8 overflow-hidden">
+          <h1 className="text-7xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-red-400 via-rose-300 to-red-400 tracking-widest">
+            {'REKKER'.split('').map((letter, i) => (
+              <span
+                key={i}
+                className="inline-block animate-wave"
+                style={{ animationDelay: `${i * 100}ms` }}
+              >
+                {letter}
+              </span>
+            ))}
           </h1>
-          <p className="text-sm text-red-200/60 tracking-widest uppercase animate-fade-in">
-            Quality · Trust · Excellence
-          </p>
         </div>
 
-        {/* Progress bar with sophisticated design */}
-        <div className="w-80 space-y-3">
-          <div className="relative h-1 bg-white/10 rounded-full overflow-hidden backdrop-blur-sm">
-            {/* Animated background shimmer */}
+        {/* Tagline */}
+        <p className="text-red-200/80 text-xl font-light tracking-wider mb-12 animate-fade-in-up">
+          Quality · Trust · Excellence
+        </p>
+
+        {/* Progress bar container */}
+        <div className="w-full max-w-md space-y-4">
+          {/* Circular progress indicator */}
+          <div className="relative w-32 h-32 mx-auto mb-8">
+            {/* Background circle */}
+            <svg className="w-full h-full transform -rotate-90">
+              <circle
+                cx="64"
+                cy="64"
+                r="56"
+                stroke="rgba(255,255,255,0.1)"
+                strokeWidth="8"
+                fill="none"
+              />
+              <circle
+                cx="64"
+                cy="64"
+                r="56"
+                stroke="url(#gradient)"
+                strokeWidth="8"
+                fill="none"
+                strokeLinecap="round"
+                strokeDasharray={`${2 * Math.PI * 56}`}
+                strokeDashoffset={`${2 * Math.PI * 56 * (1 - progress / 100)}`}
+                className="transition-all duration-300 ease-out"
+              />
+              <defs>
+                <linearGradient id="gradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                  <stop offset="0%" stopColor="#ef4444" />
+                  <stop offset="50%" stopColor="#f43f5e" />
+                  <stop offset="100%" stopColor="#ef4444" />
+                </linearGradient>
+              </defs>
+            </svg>
+            
+            {/* Percentage text */}
+            <div className="absolute inset-0 flex items-center justify-center">
+              <span className="text-3xl font-bold text-white tabular-nums">
+                {Math.round(progress)}%
+              </span>
+            </div>
+          </div>
+
+          {/* Linear progress bar */}
+          <div className="relative h-2 bg-white/10 rounded-full overflow-hidden backdrop-blur-sm">
+            {/* Shimmer effect */}
             <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent animate-shimmer" />
             
             {/* Progress fill */}
             <div
-              className="absolute inset-y-0 left-0 bg-gradient-to-r from-red-500 via-rose-500 to-red-600 rounded-full transition-all duration-300 ease-out shadow-lg shadow-red-500/50"
+              className="absolute inset-y-0 left-0 bg-gradient-to-r from-red-500 via-rose-500 to-red-600 rounded-full transition-all duration-300 ease-out"
               style={{ width: `${progress}%` }}
             >
               {/* Glowing tip */}
-              <div className="absolute right-0 top-1/2 -translate-y-1/2 w-3 h-3 bg-white rounded-full shadow-lg shadow-white/50 animate-pulse" />
+              <div className="absolute right-0 top-1/2 -translate-y-1/2 w-4 h-4 bg-white rounded-full shadow-lg shadow-white/50 animate-pulse" />
             </div>
           </div>
 
-          {/* Loading text and percentage */}
-          <div className="flex items-center justify-between text-sm">
-            <span className="text-red-200/80 animate-pulse">{loadingText}</span>
-            <span className="text-red-300 font-semibold tabular-nums">{progress}%</span>
+          {/* Loading text with dots animation */}
+          <div className="text-center text-red-200/80 text-sm font-medium tracking-wider">
+            Loading your experience
+            <span className="inline-flex ml-1">
+              <span className="animate-bounce" style={{ animationDelay: '0ms' }}>.</span>
+              <span className="animate-bounce" style={{ animationDelay: '150ms' }}>.</span>
+              <span className="animate-bounce" style={{ animationDelay: '300ms' }}>.</span>
+            </span>
           </div>
         </div>
 
         {/* Decorative elements */}
-        <div className="flex space-x-2">
+        <div className="flex space-x-2 mt-12">
           {[...Array(3)].map((_, i) => (
             <div
               key={i}
@@ -134,12 +200,27 @@ const SpectacularLoader = () => {
       <style jsx>{`
         @keyframes float {
           0%, 100% {
-            transform: translateY(0) scale(1);
+            transform: translateY(0) translateX(0);
             opacity: 0.3;
           }
           50% {
-            transform: translateY(-20px) scale(1.1);
+            transform: translateY(-20px) translateX(10px);
             opacity: 0.6;
+          }
+        }
+
+        @keyframes blob {
+          0%, 100% {
+            transform: translate(0, 0) scale(1);
+          }
+          25% {
+            transform: translate(20px, -20px) scale(1.1);
+          }
+          50% {
+            transform: translate(-20px, 20px) scale(0.9);
+          }
+          75% {
+            transform: translate(20px, 20px) scale(1.05);
           }
         }
 
@@ -152,18 +233,12 @@ const SpectacularLoader = () => {
           }
         }
 
-        @keyframes ping-slow {
-          0% {
-            transform: scale(1);
-            opacity: 0.8;
+        @keyframes spin-reverse {
+          from {
+            transform: rotate(360deg);
           }
-          50% {
-            transform: scale(1.1);
-            opacity: 0.4;
-          }
-          100% {
-            transform: scale(1);
-            opacity: 0.8;
+          to {
+            transform: rotate(0deg);
           }
         }
 
@@ -185,21 +260,19 @@ const SpectacularLoader = () => {
           }
         }
 
-        @keyframes gradient-x {
+        @keyframes wave {
           0%, 100% {
-            background-size: 200% 200%;
-            background-position: left center;
+            transform: translateY(0);
           }
           50% {
-            background-size: 200% 200%;
-            background-position: right center;
+            transform: translateY(-10px);
           }
         }
 
-        @keyframes fade-in {
+        @keyframes fade-in-up {
           from {
             opacity: 0;
-            transform: translateY(10px);
+            transform: translateY(20px);
           }
           to {
             opacity: 1;
@@ -207,16 +280,24 @@ const SpectacularLoader = () => {
           }
         }
 
-        .animate-float {
-          animation: float 3s ease-in-out infinite;
+        .animate-blob {
+          animation: blob 7s infinite;
+        }
+
+        .animation-delay-2000 {
+          animation-delay: 2s;
+        }
+
+        .animation-delay-4000 {
+          animation-delay: 4s;
         }
 
         .animate-spin-slow {
           animation: spin-slow 3s linear infinite;
         }
 
-        .animate-ping-slow {
-          animation: ping-slow 2s cubic-bezier(0, 0, 0.2, 1) infinite;
+        .animate-spin-reverse {
+          animation: spin-reverse 2s linear infinite;
         }
 
         .animate-shine {
@@ -227,12 +308,12 @@ const SpectacularLoader = () => {
           animation: shimmer 2s ease-in-out infinite;
         }
 
-        .animate-gradient-x {
-          animation: gradient-x 3s ease infinite;
+        .animate-wave {
+          animation: wave 1.5s ease-in-out infinite;
         }
 
-        .animate-fade-in {
-          animation: fade-in 1s ease-out forwards;
+        .animate-fade-in-up {
+          animation: fade-in-up 1s ease-out forwards;
         }
 
         .bg-radial-gradient {
@@ -243,4 +324,4 @@ const SpectacularLoader = () => {
   );
 };
 
-export default SpectacularLoader;
+export default LuxuryLoader;
