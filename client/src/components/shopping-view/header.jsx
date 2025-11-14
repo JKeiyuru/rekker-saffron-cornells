@@ -1,9 +1,10 @@
 /* eslint-disable no-unused-vars */
-// client/src/components/shopping-view/header.jsx - Click-Based Dropdown with Proper Filtering
+// client/src/components/shopping-view/header.jsx - Luxury Header with Premium Design
+import React, { useState, useEffect, useRef } from 'react';
 import { 
   LogOut, Menu, ShoppingCart, UserCog, Heart, Phone, MapPin, 
   Clock, Truck, ChevronDown, ChevronUp, Globe, ArrowRight, LogIn, UserPlus,
-  X
+  X, Search, Sparkles
 } from "lucide-react";
 import {
   Link,
@@ -25,7 +26,6 @@ import {
 import { Avatar, AvatarFallback } from "../ui/avatar";
 import { logoutUser } from "@/store/auth-slice";
 import UserCartWrapper from "./cart-wrapper";
-import { useEffect, useState, useRef } from "react";
 import { fetchCartItems } from "@/store/shop/cart-slice";
 import { Label } from "../ui/label";
 import WishlistSheet from "./wishlist-sheet";
@@ -102,6 +102,7 @@ function MenuItems() {
   const navigate = useNavigate();
   const location = useLocation();
   const [activeDropdown, setActiveDropdown] = useState(null);
+  const [searchFocused, setSearchFocused] = useState(false);
   const dropdownRef = useRef(null);
 
   useEffect(() => {
@@ -122,13 +123,13 @@ function MenuItems() {
   }
 
   function handleCategoryClick(categoryId, isSubcategory = false) {
-  sessionStorage.removeItem("filters");
-  const currentFilter = isSubcategory 
-    ? { subcategory: [categoryId] }
-    : { category: [categoryId] };
-    
-  sessionStorage.setItem("filters", JSON.stringify(currentFilter));
-  navigate(`/shop/listing?${isSubcategory ? 'subcategory' : 'category'}=${categoryId}`);
+    sessionStorage.removeItem("filters");
+    const currentFilter = isSubcategory 
+      ? { subcategory: [categoryId] }
+      : { category: [categoryId] };
+      
+    sessionStorage.setItem("filters", JSON.stringify(currentFilter));
+    navigate(`/shop/listing?${isSubcategory ? 'subcategory' : 'category'}=${categoryId}`);
     setActiveDropdown(null);
   }
 
@@ -154,9 +155,10 @@ function MenuItems() {
         <Label
           key={menuItem.id}
           onClick={() => handleNavigate(menuItem.path)}
-          className="text-sm font-medium cursor-pointer hover:text-red-600 transition-colors"
+          className="text-sm font-medium cursor-pointer hover:text-red-600 transition-colors relative group"
         >
           {menuItem.label}
+          <span className="absolute bottom-0 left-0 w-0 h-0.5 bg-gradient-to-r from-red-600 to-rose-600 group-hover:w-full transition-all duration-300" />
         </Label>
       ))}
       
@@ -164,15 +166,16 @@ function MenuItems() {
       <div className="relative hidden lg:block">
         <button
           onClick={() => toggleDropdown('products')}
-          className="flex items-center gap-1 text-sm font-medium cursor-pointer hover:text-red-600 transition-colors"
+          className="flex items-center gap-1 text-sm font-medium cursor-pointer hover:text-red-600 transition-colors relative group"
         >
           <span>Products</span>
           <ChevronDown className={`w-3 h-3 transition-transform ${activeDropdown === 'products' ? 'rotate-180' : ''}`} />
+          <span className="absolute bottom-0 left-0 w-0 h-0.5 bg-gradient-to-r from-red-600 to-rose-600 group-hover:w-full transition-all duration-300" />
         </button>
         
         {activeDropdown === 'products' && (
           <div 
-            className="absolute top-full left-1/2 transform -translate-x-1/2 mt-2 w-screen max-w-6xl bg-white rounded-2xl shadow-2xl border border-gray-200 z-50 animate-in fade-in slide-in-from-top-3 duration-200 max-h-[80vh] overflow-y-auto"
+            className="absolute top-full left-1/2 transform -translate-x-1/2 mt-2 w-screen max-w-6xl bg-white/95 backdrop-blur-xl rounded-3xl shadow-2xl border border-gray-200 z-50 animate-in fade-in slide-in-from-top-3 duration-200 max-h-[80vh] overflow-y-auto"
           >
             <div className="p-8">
               {/* Three Column Layout */}
@@ -259,57 +262,26 @@ function MenuItems() {
         )}
       </div>
 
-      {/* Click-Based Products Dropdown - Mobile */}
-      <div className="lg:hidden">
-        <button
-          onClick={() => toggleDropdown('mobile-products')}
-          className="flex items-center gap-1 text-sm font-medium cursor-pointer hover:text-red-600 transition-colors w-full justify-between"
-        >
-          <span>Products</span>
-          <ChevronDown className={`w-3 h-3 transition-transform ${activeDropdown === 'mobile-products' ? 'rotate-180' : ''}`} />
-        </button>
-        
-        {activeDropdown === 'mobile-products' && (
-          <div className="mt-2 space-y-4 pl-4 border-l-2 border-red-100">
-            {productCategories.map((category, idx) => (
-              <div key={idx} className="pb-4 border-b border-red-100 last:border-b-0">
-                <div className="flex items-center justify-between mb-3">
-                  <h4 className={`text-sm font-bold uppercase ${category.iconColor}`}>{category.name}</h4>
-                  {category.name === 'Cornells Brand' && (
-                    <div className="flex items-center space-x-1 text-xs text-rose-600 font-medium">
-                      <Globe className="w-3 h-3" />
-                      <span>Global</span>
-                    </div>
-                  )}
-                </div>
-                <p className="text-xs text-gray-600 mb-3">{category.description}</p>
-                <div className="space-y-2 mb-4">
-                  {category.items.map((item) => (
-                    <button
-                      key={item.id}
-                      onClick={() => handleCategoryClick(item.id)}
-                      className={`block w-full text-left px-3 py-2 text-sm text-gray-700 ${category.hoverColor} rounded-lg transition-colors font-medium border border-transparent hover:border-${category.borderColor.split('-')[1]}-200 bg-white/50`}
-                    >
-                      <div className="font-medium">{item.label}</div>
-                      <div className="text-xs text-gray-500 mt-1">{item.desc}</div>
-                    </button>
-                  ))}
-                </div>
-                <Button
-                  onClick={() => {
-                    setActiveDropdown(null);
-                    handleBrandPageClick(category.brand);
-                  }}
-                  size="sm"
-                  className={`w-full bg-gradient-to-r ${category.buttonGradient} text-white text-xs font-semibold`}
-                >
-                  {category.name === 'Rekker Products' ? 'View All Products' : 
-                   category.name === 'Saffron Brand' ? 'Explore Saffron' : 'Explore Cornells'}
-                </Button>
-              </div>
-            ))}
-          </div>
-        )}
+      {/* Search Bar - Desktop */}
+      <div className={`hidden lg:flex items-center transition-all duration-300 ${
+        searchFocused ? 'w-96' : 'w-72'
+      }`}>
+        <div className="relative w-full group">
+          <Search className={`absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 transition-colors ${
+            searchFocused ? 'text-red-600' : 'text-gray-400'
+          }`} />
+          <input
+            type="text"
+            placeholder="Search premium products..."
+            onFocus={() => setSearchFocused(true)}
+            onBlur={() => setSearchFocused(false)}
+            className={`w-full pl-12 pr-4 py-3 rounded-2xl bg-gray-50 border-2 transition-all duration-300 text-sm ${
+              searchFocused
+                ? 'border-red-600 bg-white shadow-lg'
+                : 'border-transparent hover:border-gray-200'
+            }`}
+          />
+        </div>
       </div>
     </nav>
   );
@@ -369,7 +341,7 @@ function HeaderRightContent() {
             onClick={() => navigate('/auth/login')}
             variant="outline"
             size="sm"
-            className="flex items-center gap-2 hover:bg-red-50 hover:text-red-600 hover:border-red-600"
+            className="flex items-center gap-2 hover:bg-red-50 hover:text-red-600 hover:border-red-600 rounded-xl"
           >
             <LogIn className="w-4 h-4" />
             <span className="hidden sm:inline">Login</span>
@@ -377,7 +349,7 @@ function HeaderRightContent() {
           <Button
             onClick={() => navigate('/auth/register')}
             size="sm"
-            className="bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-700 hover:to-rose-700 text-white flex items-center gap-2"
+            className="bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-700 hover:to-rose-700 text-white flex items-center gap-2 rounded-xl"
           >
             <UserPlus className="w-4 h-4" />
             <span className="hidden sm:inline">Sign Up</span>
@@ -390,12 +362,14 @@ function HeaderRightContent() {
               onClick={handleCartClick}
               variant="outline"
               size="icon"
-              className="relative"
+              className="relative rounded-2xl hover:bg-gray-50 transition-all duration-300 group"
             >
-              <ShoppingCart className="w-6 h-6" />
-              <span className="absolute top-[-5px] right-[2px] font-bold text-sm">
-                {cartItems?.items?.length || 0}
-              </span>
+              <ShoppingCart className="w-6 h-6 text-gray-700 group-hover:text-red-600 group-hover:scale-110 transition-all" />
+              {cartItems?.items?.length > 0 && (
+                <span className="absolute -top-1 -right-1 w-5 h-5 bg-gradient-to-r from-red-600 to-rose-600 text-white text-xs font-bold rounded-full flex items-center justify-center animate-pulse">
+                  {cartItems.items.length}
+                </span>
+              )}
               <span className="sr-only">User cart</span>
             </Button>
             <UserCartWrapper
@@ -411,12 +385,14 @@ function HeaderRightContent() {
               onClick={handleWishlistClick}
               variant="outline"
               size="icon"
-              className="relative"
+              className="relative rounded-2xl hover:bg-gray-50 transition-all duration-300 group"
             >
-              <Heart className="w-6 h-6 text-red-500" />
-              <span className="absolute top-[-5px] right-[2px] font-bold text-sm">
-                {wishlistItems?.length || 0}
-              </span>
+              <Heart className="w-6 h-6 text-gray-700 group-hover:text-red-600 group-hover:scale-110 transition-all" />
+              {wishlistItems?.length > 0 && (
+                <span className="absolute -top-1 -right-1 w-5 h-5 bg-gradient-to-r from-red-600 to-rose-600 text-white text-xs font-bold rounded-full flex items-center justify-center animate-pulse">
+                  {wishlistItems.length}
+                </span>
+              )}
               <span className="sr-only">User wishlist</span>
             </Button>
             <WishlistSheet setOpenWishlistSheet={setOpenWishlistSheet} />
@@ -424,13 +400,13 @@ function HeaderRightContent() {
 
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Avatar className="bg-red-600 hover:cursor-pointer">
+              <Avatar className="bg-red-600 hover:cursor-pointer rounded-2xl">
                 <AvatarFallback className="bg-red-600 text-white font-extrabold">
                   {user?.userName[0].toUpperCase()}
                 </AvatarFallback>
               </Avatar>
             </DropdownMenuTrigger>
-            <DropdownMenuContent side="right" className="w-56">
+            <DropdownMenuContent side="right" className="w-56 rounded-2xl">
               <DropdownMenuLabel>Logged in as {user?.userName}</DropdownMenuLabel>
               <DropdownMenuSeparator />
               <DropdownMenuItem onClick={() => navigate("/shop/account")}>
@@ -455,8 +431,9 @@ function MobileContactInfo() {
 
   return (
     <div className="lg:hidden">
-      <div className="bg-gradient-to-r from-red-900 to-rose-900 px-3 py-2">
-        <div className="flex items-center justify-between">
+      <div className="bg-gradient-to-r from-red-900 to-rose-900 px-3 py-2 overflow-hidden relative">
+        <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent animate-shimmer" />
+        <div className="flex items-center justify-between relative z-10">
           <div className="flex items-center gap-4 text-xs text-white overflow-hidden">
             <div className="flex items-center whitespace-nowrap">
               <Phone className="h-3 w-3 mr-1 text-red-300 flex-shrink-0" />
@@ -471,7 +448,7 @@ function MobileContactInfo() {
             variant="ghost"
             size="sm"
             onClick={() => setIsExpanded(!isExpanded)}
-            className="h-6 w-6 p-0 text-white hover:bg-red-800/50"
+            className="h-6 w-6 p-0 text-white hover:bg-red-800/50 rounded-full"
           >
             {isExpanded ? (
               <ChevronUp className="h-3 w-3" />
@@ -482,7 +459,7 @@ function MobileContactInfo() {
         </div>
         
         {isExpanded && (
-          <div className="mt-3 pt-3 border-t border-red-700/50 space-y-2">
+          <div className="mt-3 pt-3 border-t border-red-700/50 space-y-2 relative z-10">
             <div className="flex items-center text-xs text-white">
               <MapPin className="h-3 w-3 mr-2 text-red-300 flex-shrink-0" />
               <span className="font-semibold text-red-200">Location:</span>
@@ -506,24 +483,31 @@ function MobileContactInfo() {
 function DesktopContactInfo() {
   return (
     <div className="hidden lg:block">
-      <div className="bg-gradient-to-r from-red-900 to-rose-900 rounded-lg px-4 py-2 shadow-md">
-        <div className="grid grid-cols-1 xl:grid-cols-3 gap-3 text-xs">
-          <div className="flex items-center text-white">
-            <Phone className="h-3 w-3 mr-2 text-red-300" />
-            <span className="font-semibold text-red-200">Phone:</span>
-            <span className="ml-1 font-medium">+254 XXX XXX XXX</span>
+      <div className="bg-gradient-to-r from-red-900 to-rose-900 rounded-lg px-4 py-3 shadow-md overflow-hidden relative">
+        <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent animate-shimmer" />
+        <div className="flex items-center justify-between gap-6 text-xs relative z-10">
+          <div className="flex items-center space-x-2 min-w-0 flex-1">
+            <Phone className="h-3.5 w-3.5 text-red-300 flex-shrink-0" />
+            <div className="min-w-0">
+              <span className="font-semibold text-red-200">Phone: </span>
+              <span className="font-medium text-white ml-1 truncate">+254 XXX XXX XXX</span>
+            </div>
           </div>
           
-          <div className="flex items-center text-white">
-            <MapPin className="h-3 w-3 mr-2 text-red-300" />
-            <span className="font-semibold text-red-200">Location:</span>
-            <span className="ml-1 font-medium">Nairobi, Kenya</span>
+          <div className="flex items-center space-x-2 min-w-0 flex-1">
+            <MapPin className="h-3.5 w-3.5 text-red-300 flex-shrink-0" />
+            <div className="min-w-0">
+              <span className="font-semibold text-red-200">Location: </span>
+              <span className="font-medium text-white ml-1 truncate">Nairobi, Kenya</span>
+            </div>
           </div>
           
-          <div className="flex items-center text-white">
-            <Clock className="h-3 w-3 mr-2 text-red-300" />
-            <span className="font-semibold text-red-200">Hours:</span>
-            <span className="ml-1 font-medium">Mon-Fri: 8AM - 6PM</span>
+          <div className="flex items-center space-x-2 min-w-0 flex-1">
+            <Clock className="h-3.5 w-3.5 text-red-300 flex-shrink-0" />
+            <div className="min-w-0">
+              <span className="font-semibold text-red-200">Hours: </span>
+              <span className="font-medium text-white ml-1 truncate">Mon-Fri: 8AM - 6PM</span>
+            </div>
           </div>
         </div>
       </div>
@@ -534,47 +518,118 @@ function DesktopContactInfo() {
 function ShoppingHeader() {
   const { isAuthenticated } = useSelector((state) => state.auth);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [isScrolled, setIsScrolled] = useState(false);
+
+  useEffect(() => {
+    const handleScroll = () => {
+      setIsScrolled(window.scrollY > 20);
+    };
+    window.addEventListener('scroll', handleScroll);
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
 
   return (
-    <header className="sticky top-0 z-40 w-full border-b bg-white shadow-sm">
-      <MobileContactInfo />
-      
-      <div className="flex h-16 items-center justify-between px-4 md:px-6">
-        <Link to="/shop/home" className="flex items-center gap-2">
-          <div className="w-10 h-10 bg-gradient-to-br from-red-600 to-rose-600 rounded-lg flex items-center justify-center">
-            <span className="text-white font-bold text-xl">R</span>
-          </div>
-          <div>
-            <span className="font-bold text-2xl text-gray-900">REKKER</span>
-            <p className="text-xs text-red-600">Quality Products, Trusted Brands</p>
-          </div>
-        </Link>
-        
-        <Sheet open={isMenuOpen} onOpenChange={setIsMenuOpen}>
-          <SheetTrigger asChild>
-            <Button variant="outline" size="icon" className="lg:hidden">
-              <Menu className="h-6 w-6" />
-              <span className="sr-only">Toggle menu</span>
-            </Button>
-          </SheetTrigger>
-          <SheetContent side="left" className="w-full max-w-xs">
-            <MenuItems />
-            <div className="mt-6">
-              <HeaderRightContent />
+    <div className="relative">
+      {/* Top announcement bar */}
+      <div className="bg-gradient-to-r from-red-900 via-rose-900 to-red-900 text-white py-2 overflow-hidden relative">
+        <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent animate-shimmer" />
+        <div className="container mx-auto px-4">
+          <div className="flex items-center justify-center gap-8 text-xs md:text-sm">
+            <div className="flex items-center gap-2 animate-fade-in">
+              <Sparkles className="w-4 h-4" />
+              <span className="font-medium">Free Shipping on Orders Over KES 5,000</span>
             </div>
-          </SheetContent>
-        </Sheet>
-        
-        <div className="hidden lg:flex lg:items-center lg:gap-8">
-          <MenuItems />
-          <DesktopContactInfo />
-        </div>
-
-        <div className="hidden lg:block">
-          <HeaderRightContent />
+          </div>
         </div>
       </div>
-    </header>
+
+      <header 
+        className={`sticky top-0 z-50 transition-all duration-500 ${
+          isScrolled 
+            ? 'bg-white/95 backdrop-blur-xl shadow-lg' 
+            : 'bg-white'
+        }`}
+      >
+        <div className="container mx-auto px-4">
+          <div className="flex items-center justify-between h-20">
+            
+            {/* Logo with premium animation */}
+            <Link to="/shop/home" className="flex items-center gap-3 group cursor-pointer">
+              <div className="relative">
+                <div className="absolute inset-0 bg-gradient-to-br from-red-600 to-rose-600 rounded-2xl blur-lg opacity-50 group-hover:opacity-75 transition-opacity" />
+                <div className="relative w-12 h-12 bg-gradient-to-br from-red-600 to-rose-600 rounded-2xl flex items-center justify-center transform group-hover:scale-105 transition-transform shadow-lg">
+                  <span className="text-white font-bold text-2xl">R</span>
+                  <div className="absolute inset-0 rounded-2xl bg-gradient-to-tr from-transparent via-white/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+                </div>
+              </div>
+              <div>
+                <h1 className="text-2xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-red-600 to-rose-600">
+                  REKKER
+                </h1>
+                <p className="text-xs text-gray-500 font-medium">Quality Excellence</p>
+              </div>
+            </Link>
+            
+            <div className="hidden lg:flex lg:items-center lg:gap-8">
+              <MenuItems />
+              <DesktopContactInfo />
+            </div>
+
+            <div className="hidden lg:block">
+              <HeaderRightContent />
+            </div>
+
+            {/* Mobile Menu Button */}
+            <Sheet open={isMenuOpen} onOpenChange={setIsMenuOpen}>
+              <SheetTrigger asChild>
+                <Button variant="outline" size="icon" className="lg:hidden rounded-2xl">
+                  {isMenuOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
+                  <span className="sr-only">Toggle menu</span>
+                </Button>
+              </SheetTrigger>
+              <SheetContent side="left" className="w-full max-w-xs rounded-r-3xl">
+                <MenuItems />
+                <div className="mt-6">
+                  <HeaderRightContent />
+                </div>
+              </SheetContent>
+            </Sheet>
+          </div>
+        </div>
+
+        <MobileContactInfo />
+      </header>
+
+      <style jsx>{`
+        @keyframes shimmer {
+          0% {
+            transform: translateX(-100%);
+          }
+          100% {
+            transform: translateX(100%);
+          }
+        }
+
+        @keyframes fade-in {
+          from {
+            opacity: 0;
+            transform: translateY(-10px);
+          }
+          to {
+            opacity: 1;
+            transform: translateY(0);
+          }
+        }
+
+        .animate-shimmer {
+          animation: shimmer 3s infinite;
+        }
+
+        .animate-fade-in {
+          animation: fade-in 0.5s ease-out;
+        }
+      `}</style>
+    </div>
   );
 }
 
