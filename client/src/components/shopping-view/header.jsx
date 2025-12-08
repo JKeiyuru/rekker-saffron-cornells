@@ -1,4 +1,4 @@
-// client/src/components/shopping-view/luxury-header.jsx
+// client/src/components/shopping-view/header.jsx
 /* eslint-disable no-unused-vars */
 import React, { useState, useEffect, useRef } from 'react';
 import { 
@@ -32,6 +32,7 @@ import { useToast } from "@/components/ui/use-toast";
 const mainMenuItems = [
   { id: "home", label: "Home", path: "/shop/home" },
   { id: "about", label: "About", path: "/shop/about" },
+  { id: "shop", label: "Shop", path: "/shop/listing" },
   { id: "brands", label: "Brands", path: "/shop/brands" },
   { id: "contact", label: "Contact", path: "/shop/contact" },
 ];
@@ -43,7 +44,6 @@ function LuxuryHeader() {
   const [openCartSheet, setOpenCartSheet] = useState(false);
   const [openWishlistSheet, setOpenWishlistSheet] = useState(false);
   const [isScrolled, setIsScrolled] = useState(false);
-  const [showSearch, setShowSearch] = useState(false);
   const navigate = useNavigate();
   const dispatch = useDispatch();
   const { toast } = useToast();
@@ -152,35 +152,6 @@ function LuxuryHeader() {
                   <span className="absolute bottom-0 left-0 w-0 h-0.5 bg-gradient-to-r from-red-600 to-rose-600 group-hover:w-full transition-all duration-300" />
                 </Link>
               ))}
-              
-              {/* Products Dropdown */}
-              <DropdownMenu>
-                <DropdownMenuTrigger className="flex items-center gap-1 text-sm font-medium text-gray-700 hover:text-red-600 transition-colors duration-300 cursor-pointer">
-                  Products
-                  <ChevronDown className="w-4 h-4" />
-                </DropdownMenuTrigger>
-                <DropdownMenuContent className="w-56 bg-white/95 backdrop-blur-xl rounded-2xl shadow-xl border border-gray-100">
-                  <DropdownMenuItem 
-                    onClick={() => navigate('/shop/listing')}
-                    className="cursor-pointer rounded-xl hover:bg-red-50"
-                  >
-                    All Products
-                  </DropdownMenuItem>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem 
-                    onClick={() => navigate('/shop/listing?brand=saffron')}
-                    className="cursor-pointer rounded-xl hover:bg-orange-50"
-                  >
-                    Saffron Brand
-                  </DropdownMenuItem>
-                  <DropdownMenuItem 
-                    onClick={() => navigate('/shop/listing?brand=cornells')}
-                    className="cursor-pointer rounded-xl hover:bg-rose-50"
-                  >
-                    Cornells Brand
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
             </nav>
 
             {/* Right section - Auth & Actions */}
@@ -189,7 +160,7 @@ function LuxuryHeader() {
               <Button
                 variant="ghost"
                 size="icon"
-                onClick={() => setShowSearch(!showSearch)}
+                onClick={() => navigate('/shop/search')}
                 className="hidden md:flex rounded-full hover:bg-red-50"
               >
                 <Search className="w-5 h-5 text-gray-700 hover:text-red-600 transition-colors" />
@@ -291,37 +262,19 @@ function LuxuryHeader() {
                         {item.label}
                       </Link>
                     ))}
+                    <Link
+                      to="/shop/search"
+                      className="text-lg font-medium text-gray-700 hover:text-red-600 transition-colors flex items-center gap-2"
+                    >
+                      <Search className="w-5 h-5" />
+                      Search
+                    </Link>
                   </nav>
                 </SheetContent>
               </Sheet>
             </div>
           </div>
         </div>
-
-        {/* Search bar overlay */}
-        {showSearch && (
-          <div className="absolute inset-x-0 top-full bg-white/95 backdrop-blur-xl shadow-lg border-t border-gray-100 py-4 animate-slide-down">
-            <div className="container mx-auto px-4">
-              <div className="relative max-w-2xl mx-auto">
-                <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-                <input
-                  type="text"
-                  placeholder="Search for products..."
-                  className="w-full pl-12 pr-4 py-3 rounded-2xl border border-gray-200 focus:border-red-600 focus:ring-2 focus:ring-red-600/20 outline-none transition-all"
-                  autoFocus
-                />
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={() => setShowSearch(false)}
-                  className="absolute right-2 top-1/2 -translate-y-1/2 rounded-full"
-                >
-                  <X className="w-5 h-5" />
-                </Button>
-              </div>
-            </div>
-          </div>
-        )}
       </header>
 
       {/* Cart Sheet */}

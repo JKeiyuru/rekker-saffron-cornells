@@ -1,5 +1,5 @@
 /* eslint-disable react/jsx-key */
-// client/src/pages/shopping-view/listing.jsx - Optimized Product Listing
+// client/src/pages/shopping-view/listing.jsx - Fixed Filter Persistence
 import ProductFilter from "@/components/shopping-view/filter";
 import ProductDetailsDialog from "@/components/shopping-view/product-details";
 import LuxuryProductTile from "@/components/shopping-view/product-tile";
@@ -18,7 +18,7 @@ import {
   fetchAllFilteredProducts,
   fetchProductDetails,
 } from "@/store/shop/products-slice";
-import { ArrowUpDownIcon, Grid3x3, LayoutGrid, Filter, X } from "lucide-react";
+import { ArrowUpDownIcon, Grid3x3, LayoutGrid, Filter, X, ShoppingBag, Package } from "lucide-react";
 import { useEffect, useState, useCallback, useMemo } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import { useSearchParams, useNavigate } from "react-router-dom";
@@ -51,9 +51,8 @@ function ShoppingListing() {
   const [openDetailsDialog, setOpenDetailsDialog] = useState(false);
   const [gridView, setGridView] = useState("4");
   const [mobileFilterOpen, setMobileFilterOpen] = useState(false);
+  const [initialLoad, setInitialLoad] = useState(true);
   const { toast } = useToast();
-
-  const categorySearchParam = searchParams.get("category");
 
   const handleSort = useCallback((value) => {
     setSort(value);
@@ -147,30 +146,40 @@ function ShoppingListing() {
     return count;
   }, [filters]);
 
-  // Initialize filters
+  // FIXED: Initialize filters ONLY ONCE on mount
   useEffect(() => {
-    const stored = sessionStorage.getItem("filters");
-    if (stored) {
-      setFilters(JSON.parse(stored));
+    if (initialLoad) {
+      const stored = sessionStorage.getItem("filters");
+      if (stored) {
+        try {
+          const parsedFilters = JSON.parse(stored);
+          console.log("📦 Loading filters from sessionStorage:", parsedFilters);
+          setFilters(parsedFilters);
+        } catch (e) {
+          console.error("Error parsing stored filters:", e);
+        }
+      }
+      setInitialLoad(false);
     }
-  }, [categorySearchParam]);
+  }, [initialLoad]);
 
-  // Update URL params when filters change
+  // Update URL params when filters change (but don't re-trigger filter loading)
   useEffect(() => {
-    if (filters && Object.keys(filters).length > 0) {
+    if (!initialLoad && filters && Object.keys(filters).length > 0) {
       const createQueryString = createSearchParamsHelper(filters);
       setSearchParams(new URLSearchParams(createQueryString));
     }
-  }, [filters, setSearchParams]);
+  }, [filters, setSearchParams, initialLoad]);
 
   // Fetch products when filters or sort changes
   useEffect(() => {
-    if (filters !== null && sort !== null) {
+    if (!initialLoad) {
+      console.log("🔄 Fetching products with filters:", filters);
       dispatch(
         fetchAllFilteredProducts({ filterParams: filters, sortParams: sort })
       );
     }
-  }, [dispatch, sort, filters]);
+  }, [dispatch, sort, filters, initialLoad]);
 
   useEffect(() => {
     if (productDetails !== null) setOpenDetailsDialog(true);
@@ -329,35 +338,65 @@ function ShoppingListing() {
               </div>
             ) : (
               <div className="bg-white rounded-lg shadow-md p-12 text-center">
-                <div className="w-24 h-24 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-6">
-                  <svg
-                    className="w-12 h-12 text-gray-400"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4"
-                    />
-                  </svg>
+                <div className="w-32 h-32 bg-gradient-to-br from-red-100 to-rose-100 rounded-full flex items-center justify-center mx-auto mb-6 relative overflow-hidden">
+                  <div className="absolute inset-0 bg-gradient-to-br from-red-200/50 to-rose-200/50 animate-pulse" />
+                  <Package className="w-16 h-16 text-red-500 relative z-10" />
                 </div>
-                <h3 className="text-xl font-bold text-gray-900 mb-2">
-                  No Products Found
+                
+                <h3 className="text-2xl font-bold text-gray-900 mb-3">
+                  {getActiveFilterCount > 0 ? "No Products Match Your Filters" : "No Products Available"}
                 </h3>
-                <p className="text-gray-600 mb-6">
-                  Try adjusting your filters or search criteria
+                
+                <p className="text-gray-600 mb-6 max-w-md mx-auto">
+                  {getActiveFilterCount > 0 
+                    ? "We couldn't find any products matching your current filters. Try adjusting your criteria or explore our full collection!"
+                    : "We're currently updating our inventory. Check back soon for exciting new products!"}
                 </p>
-                {getActiveFilterCount > 0 && (
-                  <Button
-                    onClick={clearAllFilters}
-                    className="bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-700 hover:to-rose-700"
-                  >
-                    Clear All Filters
-                  </Button>
-                )}
+                
+                <div className="flex flex-col sm:flex-row gap-3 justify-center items-center">
+                  {getActiveFilterCount > 0 ? (
+                    <>
+                      <Button
+                        onClick={clearAllFilters}
+                        className="bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-700 hover:to-rose-700 text-white"
+                      >
+                        <X className="w-4 h-4 mr-2" />
+                        Clear All Filters
+                      </Button>
+                      <Button
+                        onClick={() => navigate('/shop/home')}
+                        variant="outline"
+                        className="border-gray-300 hover:border-red-600 hover:text-red-600"
+                      >
+                        Back to Home
+                      </Button>
+                    </>
+                  ) : (
+                    <>
+                      <Button
+                        onClick={() => navigate('/shop/home')}
+                        className="bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-700 hover:to-rose-700 text-white"
+                      >
+                        <ShoppingBag className="w-4 h-4 mr-2" />
+                        Browse Our Collection
+                      </Button>
+                      <Button
+                        onClick={() => navigate('/shop/contact')}
+                        variant="outline"
+                        className="border-gray-300 hover:border-red-600 hover:text-red-600"
+                      >
+                        Contact Us
+                      </Button>
+                    </>
+                  )}
+                </div>
+
+                {/* Fun encouragement message */}
+                <div className="mt-8 pt-8 border-t border-gray-200">
+                  <p className="text-sm text-gray-500 italic">
+                    💡 Tip: Try exploring different categories or brands to discover our amazing products!
+                  </p>
+                </div>
               </div>
             )}
           </div>

@@ -1,10 +1,10 @@
 /* eslint-disable react/jsx-no-undef */
-// client/src/pages/shopping-view/home.jsx
+// client/src/pages/shopping-view/home.jsx - Updated without CTA buttons
 /* eslint-disable react/no-unescaped-entities */
 /* eslint-disable no-unused-vars */
 /* eslint-disable react/jsx-key */
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge"; // ✅ ADDED - This was missing!
+import { Badge } from "@/components/ui/badge";
 import {
   ChevronLeftIcon,
   ChevronRightIcon,
@@ -41,8 +41,6 @@ const brandHeroSlides = [
     title: "REKKER",
     subtitle: "Quality Products for Every Need",
     description: "Kenya's trusted manufacturer and distributor of everyday essentials, serving retailers and institutions nationwide.",
-    ctaText: "Explore Rekker Products",
-    ctaAction: "listing",
     videoUrl: "/videos/rekker-hero-mp4.mp4",
     gradient: "from-red-900 via-red-800 to-rose-900",
     textColor: "text-white",
@@ -52,8 +50,6 @@ const brandHeroSlides = [
     title: "SAFFRON",
     subtitle: "Manufactured by Rekker",
     description: "Premium cleaning and personal care solutions, proudly made in Kenya with international quality standards.",
-    ctaText: "Explore Saffron Products",
-    ctaAction: "saffron",
     videoUrl: "/videos/SaffronRange.mp4",
     gradient: "from-orange-600 via-orange-500 to-amber-600",
     textColor: "text-white",
@@ -63,8 +59,6 @@ const brandHeroSlides = [
     title: "CORNELLS",
     subtitle: "Distributed by Rekker",
     description: "Exclusive distributor of premium beauty and skincare products, bringing world-class quality to Kenya.",
-    ctaText: "Explore Cornells Products",
-    ctaAction: "cornells",
     videoUrl: "/videos/CornellsB&BSemirange.mp4",
     gradient: "from-rose-600 via-pink-600 to-rose-700",
     textColor: "text-white",
@@ -73,28 +67,28 @@ const brandHeroSlides = [
 
 const productCategories = [
   {
-    id: "rekker-stationery",
+    id: "stationery",
     name: "Stationery",
     description: "Complete office and school supplies",
     icon: "📝",
     color: "from-red-500 to-rose-500",
   },
   {
-    id: "rekker-bags-suitcases",
+    id: "bags-suitcases",
     name: "Bags & Suitcases",
     description: "Quality school bags and travel cases",
     icon: "🎒",
     color: "from-rose-500 to-red-600",
   },
   {
-    id: "rekker-toys",
+    id: "toys",
     name: "Toys",
     description: "Safe and educational toys",
     icon: "🧸",
     color: "from-red-600 to-rose-600",
   },
   {
-    id: "rekker-kitchenware",
+    id: "kitchenware",
     name: "Kitchenware",
     description: "Essential kitchen tools",
     icon: "🍳",
@@ -130,26 +124,6 @@ function LuxuryHome() {
     };
     sessionStorage.setItem("filters", JSON.stringify(currentFilter));
     navigate(`/shop/listing?category=${categoryId}`);
-  }
-
-  function handleBrandCTA(action) {
-    sessionStorage.removeItem("filters");
-    
-    if (action === "listing") {
-      navigate('/shop/listing');
-    } else if (action === "saffron") {
-      const saffronFilter = {
-        brand: ["saffron"],
-      };
-      sessionStorage.setItem("filters", JSON.stringify(saffronFilter));
-      navigate('/shop/listing?brand=saffron');
-    } else if (action === "cornells") {
-      const cornellsFilter = {
-        brand: ["cornells"],
-      };
-      sessionStorage.setItem("filters", JSON.stringify(cornellsFilter));
-      navigate('/shop/listing?brand=cornells');
-    }
   }
 
   function handleGetProductDetails(getCurrentProductId) {
@@ -222,7 +196,7 @@ function LuxuryHome() {
 
   return (
     <div className="flex flex-col min-h-screen bg-gradient-to-br from-gray-50 via-white to-red-50/20">
-      {/* Hero Section with Parallax */}
+      {/* Hero Section with Parallax - NO CTA BUTTONS */}
       <div className="relative w-full h-screen overflow-hidden">
         {brandHeroSlides.map((slide, index) => (
           <div
@@ -280,14 +254,6 @@ function LuxuryHome() {
                   <p className="text-lg md:text-xl text-white/80 mb-8 leading-relaxed">
                     {slide.description}
                   </p>
-                  
-                  <Button
-                    onClick={() => handleBrandCTA(slide.ctaAction)}
-                    className="group bg-white/95 backdrop-blur-md hover:bg-white text-gray-900 px-8 py-6 text-lg font-semibold shadow-2xl rounded-full transition-all duration-300 hover:scale-105"
-                  >
-                    {slide.ctaText}
-                    <ArrowRight className="ml-2 w-5 h-5 group-hover:translate-x-1 transition-transform" />
-                  </Button>
                 </div>
               </div>
             </div>
