@@ -18,12 +18,11 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import {
   MapPin, CreditCard, ClipboardList, CheckCircle,
   ChevronRight, ChevronLeft, Loader2, MessageCircle,
-  Truck, Smartphone, Wallet, Phone
+  Truck, Smartphone, Wallet, Phone, ShoppingCart
 } from "lucide-react";
 
 // ─── Step labels ──────────────────────────────────────────────────────────────
@@ -153,6 +152,7 @@ function CheckoutPage() {
   const navigate = useNavigate();
   const { toast } = useToast();
 
+  // Safely get Redux state with fallbacks
   const { user } = useSelector((s) => s.auth || {});
   const shopCart = useSelector((s) => s.shopCart) || {};
   const shopDelivery = useSelector((s) => s.shopDelivery) || {};
@@ -165,6 +165,7 @@ function CheckoutPage() {
   const [step, setStep] = useState(1);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [placedOrder, setPlacedOrder] = useState(null);
+  const [isPageLoading, setIsPageLoading] = useState(true);
 
   // ── Step 1: Address ────────────────────────────────────────────────────────
   const [address, setAddress] = useState({
@@ -197,12 +198,24 @@ function CheckoutPage() {
     dispatch(fetchCounties());
   }, [dispatch]);
 
-  // ── Redirect if cart is empty ─────────────────────────────────────────────
+  // ── Handle page loading state ─────────────────────────────────────────────
   useEffect(() => {
-    if (cartItems.length === 0) {
+    // Give Redux time to load cart data
+    const timer = setTimeout(() => {
+      setIsPageLoading(false);
+    }, 1000);
+    
+    return () => clearTimeout(timer);
+  }, []);
+
+  // ── Check if cart is empty after loading ──────────────────────────────────
+  useEffect(() => {
+    // Only redirect after loading is complete
+    if (!isPageLoading && cartItems.length === 0) {
+      console.log('🛒 Cart is empty, redirecting to cart page');
       navigate('/shop/cart');
     }
-  }, [cartItems.length, navigate]);
+  }, [cartItems.length, isPageLoading, navigate]);
 
   // ── County change → fetch sub-counties ────────────────────────────────────
   const handleCountyChange = (county) => {
@@ -232,16 +245,31 @@ function CheckoutPage() {
 
   // ── Validate step 1 ────────────────────────────────────────────────────────
   const validateAddress = () => {
-    if (!address.county) { toast({ title: "Please select a county", variant: "destructive" }); return false; }
-    if (!address.subCounty) { toast({ title: "Please select a sub-county", variant: "destructive" }); return false; }
-    if (!address.location) { toast({ title: "Please select a delivery location", variant: "destructive" }); return false; }
-    if (!address.phone || address.phone.length < 9) { toast({ title: "Please enter a valid phone number", variant: "destructive" }); return false; }
+    if (!address.county) { 
+      toast({ title: "Please select a county", variant: "destructive" }); 
+      return false; 
+    }
+    if (!address.subCounty) { 
+      toast({ title: "Please select a sub-county", variant: "destructive" }); 
+      return false; 
+    }
+    if (!address.location) { 
+      toast({ title: "Please select a delivery location", variant: "destructive" }); 
+      return false; 
+    }
+    if (!address.phone || address.phone.length < 9) { 
+      toast({ title: "Please enter a valid phone number", variant: "destructive" }); 
+      return false; 
+    }
     return true;
   };
 
   // ── Validate step 2 ────────────────────────────────────────────────────────
   const validatePayment = () => {
-    if (!paymentMethod) { toast({ title: "Please select a payment method", variant: "destructive" }); return false; }
+    if (!paymentMethod) { 
+      toast({ title: "Please select a payment method", variant: "destructive" }); 
+      return false; 
+    }
     if (paymentMethod === "mpesa" && (!mpesaPhone || mpesaPhone.length < 9)) {
       toast({ title: "Please enter a valid M-Pesa number", variant: "destructive" });
       return false;
@@ -332,13 +360,34 @@ function CheckoutPage() {
     return `https://wa.me/${WHATSAPP_NUMBER}?text=${msg}`;
   };
 
-  // Don't render anything while redirecting if cart is empty
-  if (cartItems.length === 0) {
+  // Show loading state while checking cart
+  if (isPageLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
           <Loader2 className="w-8 h-8 animate-spin mx-auto text-red-700 mb-4" />
-          <p className="text-gray-600">Redirecting to cart...</p>
+          <p className="text-gray-600">Loading your cart...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Show empty cart message if no items
+  if (cartItems.length === 0) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center max-w-md px-4">
+          <div className="w-20 h-20 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
+            <ShoppingCart className="w-10 h-10 text-gray-400" />
+          </div>
+          <h2 className="text-2xl font-bold text-gray-800 mb-2">Your cart is empty</h2>
+          <p className="text-gray-600 mb-6">Add some products to your cart before checkout</p>
+          <Button
+            onClick={() => navigate('/shop/listing')}
+            className="bg-red-700 hover:bg-red-800"
+          >
+            Continue Shopping
+          </Button>
         </div>
       </div>
     );
