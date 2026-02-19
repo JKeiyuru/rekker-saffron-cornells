@@ -58,38 +58,105 @@ mongoose
   .catch((error) => console.error("MongoDB connection error:", error));
 
 const PORT = process.env.PORT || 5000;
-const allowedOrigins = process.env.CORS_ORIGIN?.split(",") || [];
 
+// Parse CORS origins from environment variable
+const allowedOrigins = process.env.CORS_ORIGIN 
+  ? process.env.CORS_ORIGIN.split(',').map(origin => origin.trim()) 
+  : [];
+
+// Add default origins for development
+const defaultOrigins = [
+  'http://localhost:5173',
+  'http://localhost:5174',
+  'http://localhost:3000',
+  'https://rekker.co.ke',
+  'https://www.rekker.co.ke'
+];
+
+// Combine and deduplicate origins
+const allAllowedOrigins = [...new Set([...defaultOrigins, ...allowedOrigins])];
+
+console.log('🌐 Allowed CORS origins:', allAllowedOrigins);
+
+// Enhanced CORS configuration
 const corsOptions = {
   origin: function (origin, callback) {
-    if (!origin || allowedOrigins.includes(origin)) callback(null, true);
-    else {
-      console.warn(`Blocked by CORS: ${origin}`);
-      callback(new Error("Not allowed by CORS"));
+    // Allow requests with no origin (like mobile apps, curl, Postman)
+    if (!origin) {
+      console.log('📡 Request with no origin - allowing');
+      return callback(null, true);
     }
+    
+    // Remove trailing slash from origin for comparison if present
+    const normalizedOrigin = origin.endsWith('/') ? origin.slice(0, -1) : origin;
+    
+    // Check if origin is in allowed list
+    if (allAllowedOrigins.includes(normalizedOrigin) || allAllowedOrigins.includes(origin)) {
+      console.log(`✅ CORS allowed for origin: ${origin}`);
+      return callback(null, true);
+    }
+    
+    // Check if origin matches any pattern (e.g., for Render preview URLs)
+    if (origin.includes('.onrender.com')) {
+      console.log(`✅ CORS allowed for Render domain: ${origin}`);
+      return callback(null, true);
+    }
+    
+    // Log blocked origins for debugging
+    console.warn(`❌ CORS blocked for origin: ${origin}`);
+    console.warn('   Allowed origins:', allAllowedOrigins);
+    
+    callback(new Error(`Origin ${origin} not allowed by CORS`));
   },
   credentials: true,
-  methods: ["GET", "POST", "DELETE", "PUT", "PATCH"],
-  allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With", "Accept", "Cache-Control"],
+  optionsSuccessStatus: 200,
+  methods: ["GET", "POST", "DELETE", "PUT", "PATCH", "OPTIONS"],
+  allowedHeaders: [
+    "Content-Type", 
+    "Authorization", 
+    "X-Requested-With", 
+    "Accept", 
+    "Cache-Control",
+    "Origin"
+  ],
 };
 
+// Apply CORS middleware
 app.use(cors(corsOptions));
+
+// Handle preflight requests explicitly
+app.options('*', cors(corsOptions));
+
 app.use(cookieParser());
 app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: true }));
 
 // Rate Limiting
 const rateLimit = require("express-rate-limit");
-const limiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 200 });
+const limiter = rateLimit({ 
+  windowMs: 15 * 60 * 1000, 
+  max: 200,
+  standardHeaders: true,
+  legacyHeaders: false,
+});
 app.use(limiter);
 
 // Static Files
 app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 
-// Allow popup windows to be closed
+// Security headers
 app.use((req, res, next) => {
   res.setHeader("Cross-Origin-Opener-Policy", "same-origin-allow-popups");
   res.setHeader("Cross-Origin-Embedder-Policy", "unsafe-none");
+  
+  // Add additional CORS headers as backup
+  res.setHeader("Access-Control-Allow-Credentials", "true");
+  
+  // Log all incoming requests for debugging (optional - remove in production)
+  if (process.env.NODE_ENV !== 'production') {
+    console.log(`${req.method} ${req.path} - Origin: ${req.headers.origin || 'none'}`);
+  }
+  
   next();
 });
 
@@ -118,12 +185,41 @@ app.use("/api/common/feature", commonFeatureRouter);
 // Health Check
 app.get("/health", (req, res) => res.status(200).send("OK"));
 
+// 404 handler for undefined routes
+app.use((req, res) => {
+  res.status(404).json({ success: false, message: "Route not found" });
+});
+
 // Error Handling Middleware
 app.use((err, req, res, next) => {
-  console.error(err.stack);
-  res.status(500).json({ success: false, message: "Internal Server Error" });
+  console.error('Server error:', err.stack);
+  
+  // Handle CORS errors specifically
+  if (err.message.includes('CORS') || err.message.includes('Not allowed by CORS')) {
+    return res.status(403).json({ 
+      success: false, 
+      message: "CORS error: Origin not allowed",
+      origin: req.headers.origin 
+    });
+  }
+  
+  res.status(500).json({ 
+    success: false, 
+    message: process.env.NODE_ENV === 'production' 
+      ? "Internal Server Error" 
+      : err.message 
+  });
 });
 
 app.listen(PORT, () =>
   console.log(`Server running on port ${PORT} in ${process.env.NODE_ENV || "development"} mode`)
 );
+
+// Graceful shutdown
+process.on('SIGTERM', () => {
+  console.log('SIGTERM received, shutting down gracefully');
+  mongoose.connection.close(false).then(() => {
+    console.log('MongoDB connection closed');
+    process.exit(0);
+  });
+});

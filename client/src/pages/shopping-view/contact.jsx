@@ -75,9 +75,9 @@ const Contact = () => {
       icon: <FaPhone className="w-6 h-6" />,
       title: "Phone Numbers",
       details: [
-        "+254 700 123 456 (Main)",
-        "+254 711 987 654 (Sales)",
-        "+254 722 555 333 (Support)"
+        "+254 115 766 838 (Main)",
+        "+254 796 183 064 (Sales)",
+        "+254 712 964 051 (Support)"
       ]
     },
     {
@@ -86,14 +86,14 @@ const Contact = () => {
       details: [
         "info@rekker.co.ke",
         "sales@rekker.co.ke",
-        "support@rekker.co.ke"
+        
       ]
     },
     {
       icon: <FaClock className="w-6 h-6" />,
       title: "Business Hours",
       details: [
-        "Monday - Friday: 8:00 AM - 6:00 PM",
+        "Monday - Friday: 8:00 AM - 5:00 PM",
         "Saturday: 9:00 AM - 2:00 PM",
         "Sunday: Closed",
         "Public Holidays: Closed"
@@ -107,28 +107,28 @@ const Contact = () => {
       title: "General Inquiries",
       description: "Information about our company, products, and services",
       contact: "info@rekker.co.ke",
-      phone: "+254 700 123 456"
+      phone: "+254 115 766 838"
     },
     {
       icon: <FaUsers className="w-8 h-8 text-rose-600" />,
       title: "Sales & Partnerships",
       description: "Wholesale orders, distribution partnerships, and bulk inquiries",
       contact: "sales@rekker.co.ke", 
-      phone: "+254 711 987 654"
+      phone: "+254 796 183 064"
     },
     {
       icon: <FaTruck className="w-8 h-8 text-red-700" />,
       title: "Distribution Support",
       description: "Distributor support, logistics, and territory inquiries",
       contact: "distributors@rekker.co.ke",
-      phone: "+254 722 555 333"
+      phone: "+254 712 964 051"
     },
     {
       icon: <FaHandshake className="w-8 h-8 text-rose-700" />,
       title: "Customer Support",
       description: "Product support, complaints, and customer service",
       contact: "support@rekker.co.ke",
-      phone: "+254 733 444 222"
+      phone: "+254 712 964 051"
     }
   ];
 
@@ -395,18 +395,24 @@ const Contact = () => {
           </div>
 
           {/* Map Section */}
-          <div className="mt-20 bg-white rounded-2xl shadow-xl overflow-hidden border border-red-100">
-            <div className="p-8">
-              <h2 className="text-3xl font-bold text-red-900 mb-6 text-center">Find Our Office</h2>
-              <div className="aspect-video bg-red-50 rounded-lg flex items-center justify-center border border-red-100">
-                <div className="text-center text-red-500">
-                  <FaMapMarkerAlt className="w-16 h-16 mx-auto mb-4" />
-                  <p className="text-lg font-medium">Interactive Map</p>
-                  <p className="text-sm">Google Maps integration coming soon</p>
-                </div>
-              </div>
-            </div>
-          </div>
+<div className="mt-20 bg-white rounded-2xl shadow-xl overflow-hidden border border-red-100">
+  <div className="p-8">
+    <h2 className="text-3xl font-bold text-red-900 mb-6 text-center">Find Our Office</h2>
+    <div className="w-full rounded-lg overflow-hidden border border-red-100">
+      <iframe
+        src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3988.7968662808544!2d36.827142574737884!3d-1.2965215986911556!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x182f1117f519345f%3A0xa0cb226df575499f!2sCornells%20Brands!5e0!3m2!1sen!2ske!4v1771501944765!5m2!1sen!2ske"
+        width="100%"
+        height="450"
+        style={{ border: 0 }}
+        allowFullScreen
+        loading="lazy"
+        referrerPolicy="no-referrer-when-downgrade"
+        title="Cornells Brands Office Location"
+        className="w-full"
+      ></iframe>
+    </div>
+  </div>
+</div>
         </div>
       </div>
     </div>
