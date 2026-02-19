@@ -1,270 +1,179 @@
-/* eslint-disable no-unused-vars */
-//client/src/pages/auth/login.jsx
-import CommonForm from "@/components/common/form";
-import { useToast } from "@/components/ui/use-toast";
-import { loginFormControls } from "@/config";
-import { loginUser, syncFirebaseAuth } from "@/store/auth-slice";
-import { useState, useEffect } from "react";
-import { useDispatch, useSelector } from "react-redux";
+// client/src/pages/auth/login.jsx
+// Login page with email/password, Google sign-in, and Forgot Password link
+
+import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { signInWithEmailAndPassword } from "firebase/auth";
-import { auth } from "@/firebase";
-import { AuthProviders } from "@/components/auth/auth-providers";
+import { useDispatch, useSelector } from "react-redux";
+import { loginUser, googleSignIn } from "@/store/auth-slice";
+import { useToast } from "@/components/ui/use-toast";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Loader2, Eye, EyeOff } from "lucide-react";
 
-const initialState = {
-  email: "",
-  password: "",
-};
-
-function AuthLogin() {
-  const [formData, setFormData] = useState(initialState);
-  const [isLoading, setIsLoading] = useState(false);
+function LoginPage() {
   const dispatch = useDispatch();
-  const { toast } = useToast();
   const navigate = useNavigate();
-  const { isAuthenticated, user } = useSelector((state) => state.auth);
+  const { toast } = useToast();
+  const { isLoading } = useSelector((s) => s.auth || {});
 
-  // Navigate when user becomes authenticated
-  useEffect(() => {
-    if (isAuthenticated && user) {
-      const targetRoute = user.role === 'admin' ? '/admin/dashboard' : '/shop/home';
-      console.log('🎯 Navigation triggered - User role:', user.role, '-> Route:', targetRoute);
-      navigate(targetRoute, { replace: true });
-    }
-  }, [isAuthenticated, user, navigate]);
+  const [formData, setFormData] = useState({ email: "", password: "" });
+  const [showPassword, setShowPassword] = useState(false);
 
-  // Helper function to handle successful login navigation
-  const handleSuccessfulLogin = (userData, message = "Logged in successfully!") => {
-    toast({ title: message });
-    console.log('✅ Login successful for user:', {
-      email: userData.email || userData.userName,
-      role: userData.role
-    });
-  };
+  const handleChange = (e) =>
+    setFormData((prev) => ({ ...prev, [e.target.name]: e.target.value }));
 
-  // Helper function to manually sync Firebase user with backend
-  const syncFirebaseUserWithBackend = async (firebaseUser) => {
-    try {
-      console.log('🔄 Manual sync - Getting fresh Firebase token...');
-      const idToken = await firebaseUser.getIdToken(true); // Force refresh
-      console.log('🎫 Got fresh Firebase token, length:', idToken.length);
-
-      // Try firebase-login first (for existing users)
-      console.log('🔐 Trying firebase-login endpoint...');
-      const loginResponse = await fetch('/api/auth/firebase-login', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${idToken}`
-        },
-        body: JSON.stringify({
-          email: firebaseUser.email,
-          firebaseUid: firebaseUser.uid
-        })
-      });
-
-      const loginData = await loginResponse.json();
-      console.log('🔐 Firebase login response:', loginData);
-
-      if (loginData.success) {
-        // Dispatch to Redux to update auth state
-        dispatch({
-          type: 'auth/setUser',
-          payload: {
-            isAuthenticated: true,
-            user: loginData.user
-          }
-        });
-        return loginData;
-      } else if (loginResponse.status === 404) {
-        // User doesn't exist, try social-login to create account
-        console.log('👤 User not found, trying social-login...');
-        const socialResponse = await fetch('/api/auth/social-login', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${idToken}`
-          }
-        });
-
-        const socialData = await socialResponse.json();
-        console.log('🎉 Social login response:', socialData);
-
-        if (socialData.success) {
-          // Dispatch to Redux to update auth state
-          dispatch({
-            type: 'auth/setUser',
-            payload: {
-              isAuthenticated: true,
-              user: socialData.user
-            }
-          });
-          return socialData;
-        } else {
-          throw new Error(socialData.message || 'Social login failed');
-        }
-      } else {
-        throw new Error(loginData.message || 'Firebase login failed');
-      }
-    } catch (error) {
-      console.error('❌ Manual sync error:', error);
-      throw error;
-    }
-  };
-
-  async function onSubmit(event) {
-    event.preventDefault();
-    setIsLoading(true);
-
-    try {
-      console.log('🔐 Starting Firebase authentication...');
-      
-      // Firebase authentication
-      const userCredential = await signInWithEmailAndPassword(
-        auth,
-        formData.email,
-        formData.password
-      );
-      
-      console.log('✅ Firebase login successful:', userCredential.user.email);
-      
-      // Instead of relying on the auth state listener, manually sync here
-      try {
-        const syncResult = await syncFirebaseUserWithBackend(userCredential.user);
-        console.log('✅ Manual sync successful:', syncResult);
-        
-        handleSuccessfulLogin(syncResult.user);
-        // Navigation will be handled by useEffect when Redux state updates
-        
-      } catch (syncError) {
-        console.error('❌ Manual sync failed:', syncError);
-        // Firebase auth succeeded but backend sync failed
-        throw new Error('Login successful but account sync failed. Please try again.');
-      }
-      
-    } catch (firebaseError) {
-      console.error('❌ Firebase login error:', firebaseError);
-      
-      // If Firebase fails, try traditional backend login
-      try {
-        console.log('🔄 Trying traditional backend login...');
-        const response = await dispatch(loginUser({ formData }));
-        
-        if (response?.payload?.success) {
-          handleSuccessfulLogin(response.payload.user);
-          // Navigation will be handled by useEffect
-        } else {
-          throw new Error(response?.payload?.message || 'Backend login failed');
-        }
-      } catch (backendError) {
-        console.error('❌ Backend login error:', backendError);
-        
-        // Provide specific error messages
-        let errorMessage = "Login failed. Please check your credentials and try again.";
-        
-        if (firebaseError.code === 'auth/user-not-found') {
-          errorMessage = "No account found with this email. Please register first.";
-        } else if (firebaseError.code === 'auth/wrong-password') {
-          errorMessage = "Incorrect password. Please try again.";
-        } else if (firebaseError.code === 'auth/invalid-email') {
-          errorMessage = "Invalid email address format.";
-        } else if (firebaseError.code === 'auth/user-disabled') {
-          errorMessage = "This account has been disabled. Please contact support.";
-        } else if (firebaseError.code === 'auth/invalid-credential') {
-          errorMessage = "Invalid credentials. Please check your email and password.";
-        } else if (firebaseError.message) {
-          errorMessage = firebaseError.message;
-        }
-
-        toast({
-          title: "Login failed",
-          description: errorMessage,
-          variant: "destructive",
-        });
-      }
-    } finally {
-      setIsLoading(false);
-    }
-  }
-
-  // Handle Google/Social login success
-  const handleSocialLoginSuccess = async (userData) => {
-    console.log('🎉 Social login successful:', userData);
-    
-    // The AuthProviders component should handle the backend sync,
-    // but we can add a fallback here if needed
-    if (userData.user) {
-      handleSuccessfulLogin(userData.user, "Logged in successfully!");
-      // Navigation will be handled by useEffect when Redux state updates
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    const result = await dispatch(loginUser(formData));
+    if (loginUser.fulfilled.match(result)) {
+      toast({ title: "Welcome back!" });
+      navigate("/shop/home");
     } else {
-      console.error('❌ Social login userData missing user object');
       toast({
-        title: "Login incomplete",
-        description: "Please try logging in again.",
-        variant: "destructive"
+        title: result.payload?.message || "Login failed. Please check your details.",
+        variant: "destructive",
       });
     }
   };
 
-  // Handle social login error
-  const handleSocialLoginError = (error) => {
-    console.error('❌ Social login error:', error);
-    toast({
-      title: "Authentication failed",
-      description: error,
-      variant: "destructive"
-    });
+  const handleGoogleSignIn = async () => {
+    const result = await dispatch(googleSignIn());
+    if (googleSignIn.fulfilled.match(result)) {
+      navigate("/shop/home");
+    } else {
+      toast({
+        title: result.payload?.message || "Google sign-in failed.",
+        variant: "destructive",
+      });
+    }
   };
-
-  // Don't render the form if already authenticated
-  if (isAuthenticated && user) {
-    console.log('👤 User already authenticated, hiding login form');
-    return null; // Let useEffect handle navigation
-  }
 
   return (
-    <div className="mx-auto w-full max-w-md space-y-6">
-      <div className="text-center">
-        <h1 className="text-3xl font-bold tracking-tight text-foreground">
-          Sign in to your account
-        </h1>
-        <p className="mt-2">
-          Don&apos;t have an account
-          <Link
-            className="font-medium ml-2 text-primary hover:underline"
-            to="/auth/register"
-          >
-            Register
-          </Link>
-        </p>
-      </div>
-      
-      <CommonForm
-        formControls={loginFormControls}
-        buttonText={isLoading ? "Signing In..." : "Sign In"}
-        formData={formData}
-        setFormData={setFormData}
-        onSubmit={onSubmit}
-        disabled={isLoading}
-      />
-      
-      <div className="relative">
-        <div className="absolute inset-0 flex items-center">
-          <span className="w-full border-t" />
+    <div className="min-h-screen bg-gray-50 flex items-center justify-center px-4">
+      <div className="w-full max-w-md">
+        {/* Logo */}
+        <div className="text-center mb-8">
+          <h1 className="text-3xl font-extrabold text-red-700 tracking-widest">REKKER</h1>
+          <p className="text-gray-500 mt-1 text-sm">Sign in to your account</p>
         </div>
-        <div className="relative flex justify-center text-xs uppercase">
-          <span className="bg-background px-2 text-muted-foreground">
-            Or continue with
-          </span>
-        </div>
-      </div>
 
-      <AuthProviders 
-        onSuccess={handleSocialLoginSuccess}
-        onError={handleSocialLoginError}
-      />
+        <div className="bg-white rounded-2xl shadow-sm p-8 space-y-5">
+          <form onSubmit={handleSubmit} className="space-y-4">
+            {/* Email */}
+            <div className="space-y-1.5">
+              <Label htmlFor="email">Email address</Label>
+              <Input
+                id="email"
+                name="email"
+                type="email"
+                autoComplete="email"
+                placeholder="you@example.com"
+                value={formData.email}
+                onChange={handleChange}
+                required
+              />
+            </div>
+
+            {/* Password */}
+            <div className="space-y-1.5">
+              <div className="flex items-center justify-between">
+                <Label htmlFor="password">Password</Label>
+                {/* ── FORGOT PASSWORD LINK ─────────────────────── */}
+                <Link
+                  to="/auth/forgot-password"
+                  className="text-xs text-red-600 hover:underline font-medium"
+                >
+                  Forgot password?
+                </Link>
+              </div>
+              <div className="relative">
+                <Input
+                  id="password"
+                  name="password"
+                  type={showPassword ? "text" : "password"}
+                  autoComplete="current-password"
+                  placeholder="Enter your password"
+                  value={formData.password}
+                  onChange={handleChange}
+                  required
+                  className="pr-10"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword((v) => !v)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                  tabIndex={-1}
+                >
+                  {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
+              </div>
+            </div>
+
+            {/* Submit */}
+            <Button
+              type="submit"
+              disabled={isLoading}
+              className="w-full bg-red-700 hover:bg-red-800 mt-1"
+            >
+              {isLoading ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" /> Signing in...
+                </>
+              ) : (
+                "Sign In"
+              )}
+            </Button>
+          </form>
+
+          {/* Divider */}
+          <div className="flex items-center gap-3">
+            <div className="flex-1 h-px bg-gray-200" />
+            <span className="text-xs text-gray-400">or</span>
+            <div className="flex-1 h-px bg-gray-200" />
+          </div>
+
+          {/* Google Sign-In */}
+          <Button
+            type="button"
+            variant="outline"
+            onClick={handleGoogleSignIn}
+            disabled={isLoading}
+            className="w-full flex items-center gap-3"
+          >
+            {/* Google SVG icon */}
+            <svg className="w-4 h-4 shrink-0" viewBox="0 0 24 24">
+              <path
+                fill="#4285F4"
+                d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
+              />
+              <path
+                fill="#34A853"
+                d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
+              />
+              <path
+                fill="#FBBC05"
+                d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"
+              />
+              <path
+                fill="#EA4335"
+                d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"
+              />
+            </svg>
+            Continue with Google
+          </Button>
+
+          {/* Sign up link */}
+          <p className="text-center text-sm text-gray-500">
+            Don&apos;t have an account?{" "}
+            <Link to="/auth/register" className="text-red-600 hover:underline font-medium">
+              Create one
+            </Link>
+          </p>
+        </div>
+      </div>
     </div>
   );
 }
 
-export default AuthLogin;
+export default LoginPage;
