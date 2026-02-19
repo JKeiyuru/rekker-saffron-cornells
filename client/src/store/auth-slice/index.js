@@ -1,68 +1,163 @@
 // client/src/store/auth-slice/index.js
-// Redux slice for authentication — includes forgot and reset password
+// Redux slice for authentication — includes Firebase auth and password reset
 
 import { createAsyncThunk, createSlice } from "@reduxjs/toolkit";
 import axios from "axios";
+import { auth } from "@/firebase";
+import { signOut } from "firebase/auth";
 import { API_BASE_URL } from "@/config/config.js";
 
-const BASE = `${API_BASE_URL}/api/auth`;
+const initialState = {
+  isAuthenticated: false,
+  isLoading: false,
+  user: null,          // Your custom user data (from MongoDB)
+  firebaseUser: null,  // Firebase auth user data
+  authChecked: false,  // Flag to track if auth has been checked
+  forgotPasswordStatus: "idle",   // idle | loading | success | error
+  resetPasswordStatus: "idle",    // idle | loading | success | error
+};
 
-// ── Register ──────────────────────────────────────────────────────────────────
-export const registerUser = createAsyncThunk("auth/registerUser", async (formData) => {
-  const res = await axios.post(`${BASE}/register`, formData, { withCredentials: true });
-  return res.data;
-});
-
-// ── Login ─────────────────────────────────────────────────────────────────────
-export const loginUser = createAsyncThunk("auth/loginUser", async (formData) => {
-  const res = await axios.post(`${BASE}/login`, formData, { withCredentials: true });
-  return res.data;
-});
-
-// ── Firebase login ────────────────────────────────────────────────────────────
-export const firebaseLoginUser = createAsyncThunk(
-  "auth/firebaseLoginUser",
-  async ({ idToken, ...body }) => {
-    const res = await axios.post(`${BASE}/firebase-login`, body, {
-      headers: { Authorization: `Bearer ${idToken}` },
-      withCredentials: true,
-    });
-    return res.data;
+// Register with Firebase + Backend
+export const registerUser = createAsyncThunk(
+  "auth/register",
+  async ({ formData, firebaseUid }, { rejectWithValue }) => {
+    try {
+      const response = await axios.post(
+        `${API_BASE_URL}/api/auth/register`,
+        { ...formData, firebaseUid },
+        { withCredentials: true }
+      );
+      return response.data;
+    } catch (error) {
+      return rejectWithValue(error.response?.data || error.message);
+    }
   }
 );
 
-// ── Social login (Google etc.) ────────────────────────────────────────────────
-export const socialLoginUser = createAsyncThunk(
-  "auth/socialLoginUser",
-  async ({ idToken }) => {
-    const res = await axios.post(`${BASE}/social-login`, {}, {
-      headers: { Authorization: `Bearer ${idToken}` },
-      withCredentials: true,
-    });
-    return res.data;
+// Login with Firebase + Backend
+export const loginUser = createAsyncThunk(
+  "auth/login",
+  async ({ formData, firebaseUid }, { rejectWithValue }) => {
+    try {
+      const response = await axios.post(
+        `${API_BASE_URL}/api/auth/login`,
+        { ...formData, firebaseUid },
+        { withCredentials: true }
+      );
+      return response.data;
+    } catch (error) {
+      return rejectWithValue(error.response?.data || error.message);
+    }
   }
 );
 
-// ── Logout ────────────────────────────────────────────────────────────────────
-export const logoutUser = createAsyncThunk("auth/logoutUser", async () => {
-  const res = await axios.post(`${BASE}/logout`, {}, { withCredentials: true });
-  return res.data;
-});
+// Logout from both Firebase and Backend
+export const logoutUser = createAsyncThunk(
+  "auth/logout",
+  async (_, { rejectWithValue }) => {
+    try {
+      await signOut(auth);
+      const response = await axios.post(
+        `${API_BASE_URL}/api/auth/logout`,
+        {},
+        { withCredentials: true }
+      );
+      return response.data;
+    } catch (error) {
+      return rejectWithValue(error.response?.data || error.message);
+    }
+  }
+);
 
-// ── Check auth ────────────────────────────────────────────────────────────────
-export const checkAuth = createAsyncThunk("auth/checkAuth", async (idToken) => {
-  const config = { withCredentials: true };
-  if (idToken) config.headers = { Authorization: `Bearer ${idToken}` };
-  const res = await axios.get(`${BASE}/check-auth`, config);
-  return res.data;
-});
+// Verify auth status with Firebase token
+export const checkAuth = createAsyncThunk(
+  "auth/checkAuth",
+  async (firebaseToken, { rejectWithValue }) => {
+    try {
+      console.log('🔍 CheckAuth called with token:', firebaseToken ? 'Token provided' : 'No token');
+      
+      const headers = {
+        "Cache-Control": "no-store, no-cache, must-revalidate, proxy-revalidate",
+        "Content-Type": "application/json",
+      };
+      
+      if (firebaseToken) {
+        headers.Authorization = `Bearer ${firebaseToken}`;
+        console.log('🔑 Added Authorization header with Firebase token');
+      }
 
-// ── Forgot password ───────────────────────────────────────────────────────────
+      console.log('📡 Making checkAuth request to backend...');
+      const response = await axios.get(
+        `${API_BASE_URL}/api/auth/check-auth`,
+        {
+          withCredentials: true,
+          headers,
+        }
+      );
+      
+      console.log('✅ CheckAuth response received:', response.data);
+      return response.data;
+    } catch (error) {
+      console.error('❌ CheckAuth error:', error.response?.data || error.message);
+      if (error.response?.status === 401) {
+        return rejectWithValue({ success: false, message: 'Not authenticated' });
+      }
+      return rejectWithValue(error.response?.data || error.message);
+    }
+  }
+);
+
+// Sync Firebase auth with backend
+export const syncFirebaseAuth = createAsyncThunk(
+  "auth/syncFirebaseAuth",
+  async (firebaseUser, { rejectWithValue, dispatch }) => {
+    try {
+      console.log('🔄 Syncing Firebase auth for user:', firebaseUser.email);
+      
+      const idToken = await firebaseUser.getIdToken(true);
+      console.log('🎫 Got fresh Firebase token');
+      
+      const response = await axios.post(
+        `${API_BASE_URL}/api/auth/social-login`,
+        {
+          token: idToken,
+          uid: firebaseUser.uid,
+          email: firebaseUser.email,
+          name: firebaseUser.displayName || firebaseUser.email.split('@')[0],
+          provider: 'google'
+        },
+        { 
+          withCredentials: true,
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${idToken}`
+          }
+        }
+      );
+      
+      console.log('✅ Backend sync successful:', response.data);
+      
+      const authResult = await dispatch(checkAuth(idToken));
+      
+      if (authResult.payload?.success) {
+        return authResult.payload;
+      } else {
+        return response.data;
+      }
+      
+    } catch (error) {
+      console.error('❌ Firebase sync error:', error.response?.data || error.message);
+      return rejectWithValue(error.response?.data || error.message);
+    }
+  }
+);
+
+// ── NEW: Forgot password ─────────────────────────────────────────────────────
 export const forgotPassword = createAsyncThunk(
   "auth/forgotPassword",
   async (email, { rejectWithValue }) => {
     try {
-      const res = await axios.post(`${BASE}/forgot-password`, { email });
+      const res = await axios.post(`${API_BASE_URL}/api/auth/forgot-password`, { email });
       return res.data;
     } catch (err) {
       return rejectWithValue(err.response?.data || { message: "Request failed" });
@@ -70,12 +165,12 @@ export const forgotPassword = createAsyncThunk(
   }
 );
 
-// ── Reset password ────────────────────────────────────────────────────────────
+// ── NEW: Reset password ──────────────────────────────────────────────────────
 export const resetPassword = createAsyncThunk(
   "auth/resetPassword",
   async ({ token, newPassword }, { rejectWithValue }) => {
     try {
-      const res = await axios.post(`${BASE}/reset-password`, { token, newPassword });
+      const res = await axios.post(`${API_BASE_URL}/api/auth/reset-password`, { token, newPassword });
       return res.data;
     } catch (err) {
       return rejectWithValue(err.response?.data || { message: "Reset failed" });
@@ -83,22 +178,36 @@ export const resetPassword = createAsyncThunk(
   }
 );
 
-// ── Slice ─────────────────────────────────────────────────────────────────────
-const initialState = {
-  isAuthenticated: false,
-  isLoading: false,
-  user: null,
-  forgotPasswordStatus: "idle",   // idle | loading | success | error
-  resetPasswordStatus: "idle",    // idle | loading | success | error
-};
-
 const authSlice = createSlice({
   name: "auth",
   initialState,
   reducers: {
     setUser: (state, action) => {
+      console.log('👤 Setting user:', action.payload?.email || action.payload?.userName);
       state.user = action.payload;
       state.isAuthenticated = !!action.payload;
+      state.authChecked = true;
+      state.isLoading = false;
+    },
+    setFirebaseUser: (state, action) => {
+      console.log('🔥 Setting Firebase user:', action.payload?.email || 'null');
+      state.firebaseUser = action.payload;
+    },
+    clearAuth: (state) => {
+      console.log('🧹 Clearing auth state');
+      state.isAuthenticated = false;
+      state.user = null;
+      state.firebaseUser = null;
+      state.authChecked = true;
+      state.isLoading = false;
+      state.forgotPasswordStatus = "idle";
+      state.resetPasswordStatus = "idle";
+    },
+    setAuthChecked: (state, action) => {
+      state.authChecked = action.payload;
+    },
+    setLoading: (state, action) => {
+      state.isLoading = action.payload;
     },
     clearPasswordStatus: (state) => {
       state.forgotPasswordStatus = "idle";
@@ -108,64 +217,138 @@ const authSlice = createSlice({
   extraReducers: (builder) => {
     builder
       // Register
-      .addCase(registerUser.pending, (state) => { state.isLoading = true; })
-      .addCase(registerUser.fulfilled, (state, action) => {
-        state.isLoading = false;
-        state.user = action.payload.success ? action.payload.user : null;
-        state.isAuthenticated = !!action.payload.success;
+      .addCase(registerUser.pending, (state) => {
+        state.isLoading = true;
       })
-      .addCase(registerUser.rejected, (state) => { state.isLoading = false; state.isAuthenticated = false; state.user = null; })
-
+      .addCase(registerUser.fulfilled, (state) => {
+        state.isLoading = false;
+      })
+      .addCase(registerUser.rejected, (state) => {
+        state.isLoading = false;
+      })
+      
       // Login
-      .addCase(loginUser.pending, (state) => { state.isLoading = true; })
+      .addCase(loginUser.pending, (state) => {
+        state.isLoading = true;
+      })
       .addCase(loginUser.fulfilled, (state, action) => {
+        console.log('🔓 LoginUser fulfilled:', action.payload?.success);
         state.isLoading = false;
-        state.user = action.payload.success ? action.payload.user : null;
-        state.isAuthenticated = !!action.payload.success;
+        if (action.payload?.success && action.payload?.user) {
+          state.user = action.payload.user;
+          state.isAuthenticated = true;
+          console.log('✅ User authenticated via login:', action.payload.user.role);
+        } else {
+          state.user = null;
+          state.isAuthenticated = false;
+        }
+        state.authChecked = true;
       })
-      .addCase(loginUser.rejected, (state) => { state.isLoading = false; state.isAuthenticated = false; state.user = null; })
-
-      // Firebase login
-      .addCase(firebaseLoginUser.pending, (state) => { state.isLoading = true; })
-      .addCase(firebaseLoginUser.fulfilled, (state, action) => {
+      .addCase(loginUser.rejected, (state, action) => {
+        console.log('❌ LoginUser rejected:', action.payload);
         state.isLoading = false;
-        state.user = action.payload.success ? action.payload.user : null;
-        state.isAuthenticated = !!action.payload.success;
+        state.isAuthenticated = false;
+        state.user = null;
+        state.authChecked = true;
       })
-      .addCase(firebaseLoginUser.rejected, (state) => { state.isLoading = false; state.isAuthenticated = false; state.user = null; })
-
-      // Social login
-      .addCase(socialLoginUser.pending, (state) => { state.isLoading = true; })
-      .addCase(socialLoginUser.fulfilled, (state, action) => {
-        state.isLoading = false;
-        state.user = action.payload.success ? action.payload.user : null;
-        state.isAuthenticated = !!action.payload.success;
+      
+      // Check Auth
+      .addCase(checkAuth.pending, (state) => {
+        state.isLoading = true;
       })
-      .addCase(socialLoginUser.rejected, (state) => { state.isLoading = false; state.isAuthenticated = false; state.user = null; })
-
-      // Logout
-      .addCase(logoutUser.fulfilled, (state) => { state.isAuthenticated = false; state.user = null; })
-
-      // Check auth
-      .addCase(checkAuth.pending, (state) => { state.isLoading = true; })
       .addCase(checkAuth.fulfilled, (state, action) => {
+        console.log('✅ CheckAuth fulfilled:', action.payload?.success);
         state.isLoading = false;
-        state.user = action.payload.success ? action.payload.user : null;
-        state.isAuthenticated = !!action.payload.success;
+        
+        if (action.payload?.success && action.payload?.user) {
+          state.user = action.payload.user;
+          state.isAuthenticated = true;
+          console.log('🎯 User authenticated via checkAuth. Role:', action.payload.user.role);
+        } else {
+          state.user = null;
+          state.isAuthenticated = false;
+          console.log('🚫 User not authenticated via checkAuth');
+        }
+        state.authChecked = true;
       })
-      .addCase(checkAuth.rejected, (state) => { state.isLoading = false; state.isAuthenticated = false; state.user = null; })
+      .addCase(checkAuth.rejected, (state, action) => {
+        console.log('❌ CheckAuth rejected:', action.payload?.message);
+        state.isLoading = false;
+        state.isAuthenticated = false;
+        state.user = null;
+        state.authChecked = true;
+      })
+      
+      // Sync Firebase Auth
+      .addCase(syncFirebaseAuth.pending, (state) => {
+        state.isLoading = true;
+      })
+      .addCase(syncFirebaseAuth.fulfilled, (state, action) => {
+        console.log('🔄 Firebase sync fulfilled:', action.payload?.success);
+        state.isLoading = false;
+        
+        if (action.payload?.success && action.payload?.user) {
+          state.user = action.payload.user;
+          state.isAuthenticated = true;
+          console.log('✅ User authenticated via Firebase sync. Role:', action.payload.user.role);
+        } else {
+          console.log('⚠️ Firebase sync succeeded but no user data');
+        }
+        state.authChecked = true;
+      })
+      .addCase(syncFirebaseAuth.rejected, (state, action) => {
+        console.log('❌ Firebase sync rejected:', action.payload);
+        state.isLoading = false;
+        state.authChecked = true;
+      })
+      
+      // Logout
+      .addCase(logoutUser.pending, (state) => {
+        state.isLoading = true;
+      })
+      .addCase(logoutUser.fulfilled, (state) => {
+        console.log('👋 Logout successful');
+        state.isAuthenticated = false;
+        state.user = null;
+        state.firebaseUser = null;
+        state.isLoading = false;
+        state.authChecked = true;
+      })
+      .addCase(logoutUser.rejected, (state) => {
+        state.isLoading = false;
+      })
 
-      // Forgot password
-      .addCase(forgotPassword.pending, (state) => { state.forgotPasswordStatus = "loading"; })
-      .addCase(forgotPassword.fulfilled, (state) => { state.forgotPasswordStatus = "success"; })
-      .addCase(forgotPassword.rejected, (state) => { state.forgotPasswordStatus = "error"; })
+      // ── NEW: Forgot password ──────────────────────────────────────────────
+      .addCase(forgotPassword.pending, (state) => {
+        state.forgotPasswordStatus = "loading";
+      })
+      .addCase(forgotPassword.fulfilled, (state) => {
+        state.forgotPasswordStatus = "success";
+      })
+      .addCase(forgotPassword.rejected, (state) => {
+        state.forgotPasswordStatus = "error";
+      })
 
-      // Reset password
-      .addCase(resetPassword.pending, (state) => { state.resetPasswordStatus = "loading"; })
-      .addCase(resetPassword.fulfilled, (state) => { state.resetPasswordStatus = "success"; })
-      .addCase(resetPassword.rejected, (state) => { state.resetPasswordStatus = "error"; });
+      // ── NEW: Reset password ───────────────────────────────────────────────
+      .addCase(resetPassword.pending, (state) => {
+        state.resetPasswordStatus = "loading";
+      })
+      .addCase(resetPassword.fulfilled, (state) => {
+        state.resetPasswordStatus = "success";
+      })
+      .addCase(resetPassword.rejected, (state) => {
+        state.resetPasswordStatus = "error";
+      });
   },
 });
 
-export const { setUser, clearPasswordStatus } = authSlice.actions;
+export const { 
+  setUser, 
+  setFirebaseUser, 
+  clearAuth, 
+  setAuthChecked, 
+  setLoading,
+  clearPasswordStatus 
+} = authSlice.actions;
+
 export default authSlice.reducer;
