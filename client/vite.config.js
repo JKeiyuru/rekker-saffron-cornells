@@ -14,6 +14,7 @@ export default defineConfig({
     }),
     viteSitemap({
       hostname: "https://rekker.co.ke",
+       generateRobotsTxt: true,
       outDir: "dist",
       urls: [
         "/",                          // homepage redirect
