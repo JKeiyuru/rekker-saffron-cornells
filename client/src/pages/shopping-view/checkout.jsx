@@ -86,27 +86,40 @@ function StepIndicator({ currentStep }) {
 }
 
 // ─── Cart summary sidebar ─────────────────────────────────────────────────────
-function OrderSummary({ cartItems, deliveryFee, step }) {
-  const subtotal = cartItems.reduce((s, i) => s + i.price * i.quantity, 0);
+function OrderSummary({ cartItems = [], deliveryFee, step }) {
+  // Ensure cartItems is an array with a fallback
+  const safeCartItems = Array.isArray(cartItems) ? cartItems : [];
+  
+  const subtotal = safeCartItems.reduce((s, i) => {
+    const price = Number(i?.price) || 0;
+    const quantity = Number(i?.quantity) || 1;
+    return s + (price * quantity);
+  }, 0);
+  
   const total = subtotal + (deliveryFee || 0);
+  
   return (
     <div className="bg-gray-50 rounded-xl p-5 space-y-4 sticky top-4">
       <h3 className="font-semibold text-gray-800">Order Summary</h3>
       <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
-        {cartItems.map((item, idx) => (
-          <div key={idx} className="flex gap-3 items-center">
-            <img
-              src={item.image}
-              alt={item.title}
-              className="w-12 h-12 rounded-lg object-cover border"
-            />
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium truncate">{item.title}</p>
-              <p className="text-xs text-gray-500">Qty: {item.quantity}</p>
+        {safeCartItems.map((item, idx) => {
+          const price = Number(item?.price) || 0;
+          const quantity = Number(item?.quantity) || 1;
+          return (
+            <div key={idx} className="flex gap-3 items-center">
+              <img
+                src={item?.image || ''}
+                alt={item?.title || 'Product'}
+                className="w-12 h-12 rounded-lg object-cover border"
+              />
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium truncate">{item?.title || 'Product'}</p>
+                <p className="text-xs text-gray-500">Qty: {quantity}</p>
+              </div>
+              <p className="text-sm font-semibold">{formatKES(price * quantity)}</p>
             </div>
-            <p className="text-sm font-semibold">{formatKES(item.price * item.quantity)}</p>
-          </div>
-        ))}
+          );
+        })}
       </div>
       <Separator />
       <div className="space-y-1.5 text-sm">
@@ -140,10 +153,14 @@ function CheckoutPage() {
   const navigate = useNavigate();
   const { toast } = useToast();
 
-  const { user } = useSelector((s) => s.auth);
-  const { cartItems } = useSelector((s) => s.shopCart);
-  const { counties, subCounties, locations, isLoading: deliveryLoading } =
-    useSelector((s) => s.shopDelivery);
+  const { user } = useSelector((s) => s.auth || {});
+  const shopCart = useSelector((s) => s.shopCart) || {};
+  const shopDelivery = useSelector((s) => s.shopDelivery) || {};
+  
+  // FIX: Ensure cartItems is always an array with fallback to empty array
+  const cartItems = Array.isArray(shopCart.cartItems) ? shopCart.cartItems : [];
+  
+  const { counties = [], subCounties = [], locations = [], isLoading: deliveryLoading = false } = shopDelivery;
 
   const [step, setStep] = useState(1);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -165,8 +182,13 @@ function CheckoutPage() {
   const [paymentMethod, setPaymentMethod] = useState(""); // "cod" | "mpesa" | "paypal"
   const [mpesaPhone, setMpesaPhone] = useState("");
 
-  // Derived totals
-  const subtotal = cartItems.reduce((s, i) => s + i.price * i.quantity, 0);
+  // Derived totals - with safety checks
+  const subtotal = cartItems.reduce((s, i) => {
+    const price = Number(i?.price) || 0;
+    const quantity = Number(i?.quantity) || 1;
+    return s + (price * quantity);
+  }, 0);
+  
   const finalDeliveryFee = isFreeDelivery ? 0 : deliveryFee || 0;
   const totalAmount = subtotal + finalDeliveryFee;
 
@@ -174,6 +196,13 @@ function CheckoutPage() {
   useEffect(() => {
     dispatch(fetchCounties());
   }, [dispatch]);
+
+  // ── Redirect if cart is empty ─────────────────────────────────────────────
+  useEffect(() => {
+    if (cartItems.length === 0) {
+      navigate('/shop/cart');
+    }
+  }, [cartItems.length, navigate]);
 
   // ── County change → fetch sub-counties ────────────────────────────────────
   const handleCountyChange = (county) => {
@@ -303,6 +332,18 @@ function CheckoutPage() {
     return `https://wa.me/${WHATSAPP_NUMBER}?text=${msg}`;
   };
 
+  // Don't render anything while redirecting if cart is empty
+  if (cartItems.length === 0) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <Loader2 className="w-8 h-8 animate-spin mx-auto text-red-700 mb-4" />
+          <p className="text-gray-600">Redirecting to cart...</p>
+        </div>
+      </div>
+    );
+  }
+
   // ─── RENDER ───────────────────────────────────────────────────────────────
   return (
     <div className="min-h-screen bg-gray-50">
@@ -326,7 +367,6 @@ function CheckoutPage() {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           {/* ── Main panel ─────────────────────────────────────────────────── */}
           <div className="lg:col-span-2">
-
             {/* ═══ STEP 1: DELIVERY ADDRESS ══════════════════════════════════ */}
             {step === 1 && (
               <div className="bg-white rounded-2xl shadow-sm p-6 space-y-5">
@@ -344,7 +384,7 @@ function CheckoutPage() {
                     onChange={(e) => handleCountyChange(e.target.value)}
                   >
                     <option value="">Select county...</option>
-                    {counties.map((c) => <option key={c} value={c}>{c}</option>)}
+                    {Array.isArray(counties) && counties.map((c) => <option key={c} value={c}>{c}</option>)}
                   </select>
                   {deliveryLoading && address.county && !address.subCounty && (
                     <p className="text-xs text-gray-400 flex items-center gap-1">
@@ -363,7 +403,7 @@ function CheckoutPage() {
                     disabled={!address.county || subCounties.length === 0}
                   >
                     <option value="">Select sub-county...</option>
-                    {subCounties.map((s) => <option key={s} value={s}>{s}</option>)}
+                    {Array.isArray(subCounties) && subCounties.map((s) => <option key={s} value={s}>{s}</option>)}
                   </select>
                 </div>
 
@@ -377,7 +417,7 @@ function CheckoutPage() {
                     disabled={!address.subCounty || locations.length === 0}
                   >
                     <option value="">Select area...</option>
-                    {locations.map((l) => (
+                    {Array.isArray(locations) && locations.map((l) => (
                       <option key={l._id} value={l.location}>
                         {l.location} — {l.isFreeDelivery ? "FREE delivery" : `KES ${l.deliveryFee}`}
                       </option>
@@ -611,16 +651,20 @@ function CheckoutPage() {
                 {/* Items */}
                 <div className="space-y-3">
                   <h3 className="font-semibold text-sm text-gray-700">Items ({cartItems.length})</h3>
-                  {cartItems.map((item, idx) => (
-                    <div key={idx} className="flex gap-3 items-center p-3 bg-gray-50 rounded-xl">
-                      <img src={item.image} alt={item.title} className="w-14 h-14 rounded-lg object-cover border" />
-                      <div className="flex-1 min-w-0">
-                        <p className="font-medium text-sm truncate">{item.title}</p>
-                        <p className="text-xs text-gray-500">Qty: {item.quantity} × {formatKES(item.price)}</p>
+                  {cartItems.map((item, idx) => {
+                    const price = Number(item?.price) || 0;
+                    const quantity = Number(item?.quantity) || 1;
+                    return (
+                      <div key={idx} className="flex gap-3 items-center p-3 bg-gray-50 rounded-xl">
+                        <img src={item?.image || ''} alt={item?.title || 'Product'} className="w-14 h-14 rounded-lg object-cover border" />
+                        <div className="flex-1 min-w-0">
+                          <p className="font-medium text-sm truncate">{item?.title || 'Product'}</p>
+                          <p className="text-xs text-gray-500">Qty: {quantity} × {formatKES(price)}</p>
+                        </div>
+                        <p className="font-semibold text-sm">{formatKES(price * quantity)}</p>
                       </div>
-                      <p className="font-semibold text-sm">{formatKES(item.price * item.quantity)}</p>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
 
                 {/* Totals */}
