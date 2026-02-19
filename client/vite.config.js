@@ -14,18 +14,48 @@ export default defineConfig({
       },
     }),
     {
+      name: 'ensure-robots-txt',
+      buildStart: () => {
+        // Ensure public directory exists
+        const publicDir = path.resolve(__dirname, 'public');
+        if (!fs.existsSync(publicDir)) {
+          fs.mkdirSync(publicDir, { recursive: true });
+        }
+        
+        // Create robots.txt if it doesn't exist
+        const robotsPath = path.resolve(publicDir, 'robots.txt');
+        if (!fs.existsSync(robotsPath)) {
+          const robotsContent = `User-agent: *
+Disallow: /admin/
+Disallow: /backend/
+Disallow: /private/
+Disallow: /config/
+Disallow: /scripts/
+Allow: /
+
+Sitemap: https://rekker.co.ke/sitemap.xml`;
+          
+          fs.writeFileSync(robotsPath, robotsContent);
+          console.log('✅ robots.txt created in public folder');
+        }
+      }
+    },
+    {
       name: 'copy-robots-txt',
       closeBundle: () => {
-        // Copy robots.txt from public folder to dist folder after build
         const robotsSrc = path.resolve(__dirname, 'public', 'robots.txt');
         const robotsDest = path.resolve(__dirname, 'dist', 'robots.txt');
         
         try {
           if (fs.existsSync(robotsSrc)) {
+            // Ensure dist directory exists
+            const distDir = path.resolve(__dirname, 'dist');
+            if (!fs.existsSync(distDir)) {
+              fs.mkdirSync(distDir, { recursive: true });
+            }
+            
             fs.copyFileSync(robotsSrc, robotsDest);
-            console.log('✅ robots.txt copied from public folder to dist folder');
-          } else {
-            console.warn('⚠️ robots.txt not found in public folder');
+            console.log('✅ robots.txt copied to dist folder');
           }
         } catch (error) {
           console.error('❌ Error copying robots.txt:', error);
@@ -34,29 +64,29 @@ export default defineConfig({
     },
     viteSitemap({
       hostname: "https://rekker.co.ke",
-      generateRobotsTxt: false, // Disable automatic robots.txt generation
+      generateRobotsTxt: false,
       outDir: "dist",
       urls: [
-        "/",                          // homepage redirect
-        "/shop/home",                 // main homepage
-        "/shop/about",                // about page
-        "/shop/services",             // services page
-        "/shop/distributors",         // distributors page
-        "/shop/contact",              // contact page
-        "/shop/brands",               // brands overview
-        "/shop/brands/saffron",       // Saffron brand page
-        "/shop/brands/cornells",      // Cornells brand page
-        "/shop/listing",              // products listing
-        "/shop/checkout",             // checkout page
-        "/shop/account",              // user account
-        "/shop/search",               // search page
-        "/shop/paypal-return",        // payment return
-        "/shop/payment-success",      // payment success
+        "/",                          
+        "/shop/home",                 
+        "/shop/about",                
+        "/shop/services",             
+        "/shop/distributors",         
+        "/shop/contact",              
+        "/shop/brands",               
+        "/shop/brands/saffron",       
+        "/shop/brands/cornells",      
+        "/shop/listing",              
+        "/shop/checkout",             
+        "/shop/account",              
+        "/shop/search",               
+        "/shop/paypal-return",        
+        "/shop/payment-success",      
       ],
       exclude: [
-        "/auth/*",                    // exclude auth pages
-        "/admin/*",                   // exclude admin pages
-        "/unauth-page",               // exclude unauth page
+        "/auth/*",                    
+        "/admin/*",                   
+        "/unauth-page",               
       ],
       changefreq: "weekly",
       priority: 0.8,
