@@ -3,6 +3,7 @@ import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import viteSitemap from "vite-plugin-sitemap";
 import compression from "vite-plugin-compression";
+import fs from 'fs';
 
 export default defineConfig({
   plugins: [
@@ -12,11 +13,29 @@ export default defineConfig({
         plugins: ['@babel/plugin-syntax-dynamic-import'],
       },
     }),
+    {
+      name: 'copy-robots-txt',
+      closeBundle: () => {
+        // Copy robots.txt from public folder to dist folder after build
+        const robotsSrc = path.resolve(__dirname, 'public', 'robots.txt');
+        const robotsDest = path.resolve(__dirname, 'dist', 'robots.txt');
+        
+        try {
+          if (fs.existsSync(robotsSrc)) {
+            fs.copyFileSync(robotsSrc, robotsDest);
+            console.log('✅ robots.txt copied from public folder to dist folder');
+          } else {
+            console.warn('⚠️ robots.txt not found in public folder');
+          }
+        } catch (error) {
+          console.error('❌ Error copying robots.txt:', error);
+        }
+      }
+    },
     viteSitemap({
       hostname: "https://rekker.co.ke",
-      generateRobotsTxt: true,
+      generateRobotsTxt: false, // Disable automatic robots.txt generation
       outDir: "dist",
-      robotsTxtPath: './public/robots.txt', // Point to the public folder
       urls: [
         "/",                          // homepage redirect
         "/shop/home",                 // main homepage
