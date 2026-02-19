@@ -14,8 +14,9 @@ export default defineConfig({
     }),
     viteSitemap({
       hostname: "https://rekker.co.ke",
-       generateRobotsTxt: true,
+      generateRobotsTxt: true,
       outDir: "dist",
+      robotsTxtPath: './public/robots.txt', // Point to the public folder
       urls: [
         "/",                          // homepage redirect
         "/shop/home",                 // main homepage
@@ -41,12 +42,7 @@ export default defineConfig({
       changefreq: "weekly",
       priority: 0.8,
       lastmod: new Date().toISOString(),
-      dynamicRoutes: [
-        // Add dynamic product routes if needed
-        // '/shop/listing?category=stationery',
-        // '/shop/listing?brand=saffron',
-        // '/shop/listing?brand=cornells',
-      ],
+      dynamicRoutes: [],
     }),
     compression({
       verbose: true,
