@@ -1,50 +1,94 @@
-/* eslint-disable no-unused-vars */
-// client/src/App.jsx - Optimized for Performance and 404 Fixes
-import { lazy, Suspense } from "react";
-import { Route, Routes, useLocation } from "react-router-dom";
-import { useEffect, useState } from "react";
+// client/src/App.jsx - Combined version with public shop routes
+import { lazy, Suspense, useEffect } from "react";
+import { Routes, Route, Navigate, useLocation } from "react-router-dom";
 import { useDispatch, useSelector } from "react-redux";
 import { checkAuth, setFirebaseUser, clearAuth, syncFirebaseAuth } from "./store/auth-slice";
 import { onAuthStateChanged } from "firebase/auth";
 import { auth } from "./firebase";
+import { useState } from "react";
 
-// Layout Components
+// ── UI Components ────────────────────────────────────────────────────────────
+import LuxuryLoader from "./components/common/spectacular-loader";
+import { Skeleton } from "@/components/ui/skeleton"; // Keep if you want to use shadcn, otherwise remove
+
+// ── Layout Components ────────────────────────────────────────────────────────
 import AuthLayout from "./components/auth/layout";
 import AdminLayout from "./components/admin-view/layout";
 import ShoppingLayout from "./components/shopping-view/layout";
-import CheckAuth from "./components/common/check-auth";
-import LuxuryLoader from "./components/common/spectacular-loader";
 
-// Pages - Lazy Load for Performance
+// ── Lazy-load pages ─────────────────────────────────────────────────────────
+// Auth
 const AuthLogin = lazy(() => import("./pages/auth/login"));
 const AuthRegister = lazy(() => import("./pages/auth/register"));
+const ForgotPassword = lazy(() => import("./pages/auth/forgot-password"));
+const ResetPassword = lazy(() => import("./pages/auth/reset-password"));
+
+// Admin
 const AdminDashboard = lazy(() => import("./pages/admin-view/dashboard"));
 const AdminProducts = lazy(() => import("./pages/admin-view/products"));
 const AdminOrders = lazy(() => import("./pages/admin-view/orders"));
 const AdminFeatures = lazy(() => import("./pages/admin-view/features"));
+const AdminDelivery = lazy(() => import("./pages/admin-view/delivery-locations"));
+
+// Shop - Public Pages
 const LuxuryHome = lazy(() => import("./pages/shopping-view/home"));
-const ShoppingListing = lazy(() => import("./pages/shopping-view/listing"));
-const ShoppingCheckout = lazy(() => import("./pages/shopping-view/checkout"));
-const ShoppingAccount = lazy(() => import("./pages/shopping-view/account"));
-const PaypalReturnPage = lazy(() => import("./pages/shopping-view/paypal-return"));
-const PaymentSuccessPage = lazy(() => import("./pages/shopping-view/payment-success"));
-const SearchProducts = lazy(() => import("./pages/shopping-view/search"));
 const About = lazy(() => import("./pages/shopping-view/about"));
 const Services = lazy(() => import("./pages/shopping-view/services"));
 const Distributors = lazy(() => import("./pages/shopping-view/distributors"));
 const Contact = lazy(() => import("./pages/shopping-view/contact"));
+const BrandsOverview = lazy(() => import("./pages/shopping-view/brands-overview"));
 const SaffronBrand = lazy(() => import("./pages/shopping-view/brands/saffron"));
 const CornellsBrand = lazy(() => import("./pages/shopping-view/brands/cornells"));
-const BrandsOverview = lazy(() => import("./pages/shopping-view/brands-overview"));
+const ShoppingListing = lazy(() => import("./pages/shopping-view/listing"));
+const SearchProducts = lazy(() => import("./pages/shopping-view/search"));
+
+// Shop - Protected Pages
+const ShoppingCheckout = lazy(() => import("./pages/shopping-view/checkout"));
+const ShoppingAccount = lazy(() => import("./pages/shopping-view/account"));
+const PaypalReturnPage = lazy(() => import("./pages/shopping-view/paypal-return"));
+const PaypalCancelPage = lazy(() => import("./pages/shopping-view/paypal-cancel"));
+const PaymentSuccessPage = lazy(() => import("./pages/shopping-view/payment-success"));
+
+// Common
 const NotFound = lazy(() => import("./pages/not-found"));
 const UnauthPage = lazy(() => import("./pages/unauth-page"));
 
-// Loading Fallback Component
+// ── Guards ───────────────────────────────────────────────────────────────────
+function CheckAuthRoute({ isAuthenticated, user, children }) {
+  if (isAuthenticated && user?.role === "admin") return <Navigate to="/admin/dashboard" replace />;
+  if (isAuthenticated) return <Navigate to="/shop/home" replace />;
+  return children;
+}
+
+function ProtectedRoute({ isAuthenticated, children }) {
+  if (!isAuthenticated) return <Navigate to="/auth/login" replace />;
+  return children;
+}
+
+function AdminRoute({ isAuthenticated, user, children }) {
+  if (!isAuthenticated) return <Navigate to="/auth/login" replace />;
+  if (user?.role !== "admin") return <Navigate to="/unauth-page" replace />;
+  return children;
+}
+
+// ── Loading Components ───────────────────────────────────────────────────────
 function LoadingFallback() {
   return <LuxuryLoader />;
 }
 
-// Scroll to top component
+function PageLoader() {
+  return (
+    <div className="min-h-screen flex items-center justify-center">
+      <div className="space-y-3 w-full max-w-md px-4">
+        <Skeleton className="h-4 w-full" />
+        <Skeleton className="h-4 w-4/5" />
+        <Skeleton className="h-4 w-3/5" />
+      </div>
+    </div>
+  );
+}
+
+// ── Scroll to top ────────────────────────────────────────────────────────────
 function ScrollToTop() {
   const { pathname } = useLocation();
 
@@ -59,14 +103,13 @@ function ScrollToTop() {
   return null;
 }
 
+// ── Main App ─────────────────────────────────────────────────────────────────
 function App() {
-  const { user, isAuthenticated, isLoading } = useSelector(
-    (state) => state.auth
-  );
   const dispatch = useDispatch();
+  const { user, isAuthenticated, isLoading } = useSelector((state) => state.auth);
   const [firebaseInitialized, setFirebaseInitialized] = useState(false);
 
-  // Firebase Authentication Setup
+  // Firebase Authentication Setup (from original)
   useEffect(() => {
     let mounted = true;
 
@@ -136,48 +179,57 @@ function App() {
       <ScrollToTop />
       <Suspense fallback={<LoadingFallback />}>
         <Routes>
-          {/* Root redirect */}
-          <Route
-            path="/"
+          {/* Root redirect - based on auth status */}
+          <Route 
+            path="/" 
             element={
-              <CheckAuth
-                isAuthenticated={isAuthenticated}
-                user={user}
-              ></CheckAuth>
-            }
+              <Navigate 
+                to={
+                  isAuthenticated 
+                    ? (user?.role === "admin" ? "/admin/dashboard" : "/shop/home") 
+                    : "/shop/home"  // Changed from /auth/login to /shop/home for public access
+                } 
+                replace 
+              />
+            } 
           />
 
-          {/* Auth Routes */}
+          {/* ── Auth Routes ─────────────────────────────────────────────────────── */}
           <Route
             path="/auth"
             element={
-              <CheckAuth isAuthenticated={isAuthenticated} user={user}>
+              <CheckAuthRoute isAuthenticated={isAuthenticated} user={user}>
                 <AuthLayout />
-              </CheckAuth>
+              </CheckAuthRoute>
             }
           >
             <Route path="login" element={<AuthLogin />} />
             <Route path="register" element={<AuthRegister />} />
           </Route>
 
-          {/* Admin Routes */}
+          {/* Forgot/reset password — outside auth layout guard */}
+          <Route path="/auth/forgot-password" element={<ForgotPassword />} />
+          <Route path="/auth/reset-password" element={<ResetPassword />} />
+
+          {/* ── Admin Routes ────────────────────────────────────────────────────── */}
           <Route
             path="/admin"
             element={
-              <CheckAuth isAuthenticated={isAuthenticated} user={user}>
+              <AdminRoute isAuthenticated={isAuthenticated} user={user}>
                 <AdminLayout />
-              </CheckAuth>
+              </AdminRoute>
             }
           >
             <Route path="dashboard" element={<AdminDashboard />} />
             <Route path="products" element={<AdminProducts />} />
             <Route path="orders" element={<AdminOrders />} />
             <Route path="features" element={<AdminFeatures />} />
+            <Route path="delivery-locations" element={<AdminDelivery />} />
           </Route>
 
-          {/* Shopping Routes */}
+          {/* ── Shopping Routes - PUBLIC by default ─────────────────────────────── */}
           <Route path="/shop" element={<ShoppingLayout />}>
-            {/* Public Routes */}
+            {/* Public Routes - accessible to everyone */}
             <Route path="home" element={<LuxuryHome />} />
             <Route path="about" element={<About />} />
             <Route path="services" element={<Services />} />
@@ -189,42 +241,52 @@ function App() {
             <Route path="listing" element={<ShoppingListing />} />
             <Route path="search" element={<SearchProducts />} />
             
-            {/* Protected Routes */}
+            {/* Protected Routes - require authentication */}
             <Route
               path="checkout"
               element={
-                <CheckAuth isAuthenticated={isAuthenticated} user={user}>
+                <ProtectedRoute isAuthenticated={isAuthenticated}>
                   <ShoppingCheckout />
-                </CheckAuth>
+                </ProtectedRoute>
               }
             />
             <Route
               path="account"
               element={
-                <CheckAuth isAuthenticated={isAuthenticated} user={user}>
+                <ProtectedRoute isAuthenticated={isAuthenticated}>
                   <ShoppingAccount />
-                </CheckAuth>
+                </ProtectedRoute>
               }
             />
             <Route
               path="paypal-return"
               element={
-                <CheckAuth isAuthenticated={isAuthenticated} user={user}>
+                <ProtectedRoute isAuthenticated={isAuthenticated}>
                   <PaypalReturnPage />
-                </CheckAuth>
+                </ProtectedRoute>
               }
             />
             <Route
               path="payment-success"
               element={
-                <CheckAuth isAuthenticated={isAuthenticated} user={user}>
+                <ProtectedRoute isAuthenticated={isAuthenticated}>
                   <PaymentSuccessPage />
-                </CheckAuth>
+                </ProtectedRoute>
               }
             />
           </Route>
 
-          {/* Error Routes */}
+          {/* PayPal pages — standalone (protected) */}
+          <Route 
+            path="/shop/paypal-cancel" 
+            element={
+              <ProtectedRoute isAuthenticated={isAuthenticated}>
+                <PaypalCancelPage />
+              </ProtectedRoute>
+            } 
+          />
+
+          {/* ── Error Routes ────────────────────────────────────────────────────── */}
           <Route path="/unauth-page" element={<UnauthPage />} />
           <Route path="*" element={<NotFound />} />
         </Routes>

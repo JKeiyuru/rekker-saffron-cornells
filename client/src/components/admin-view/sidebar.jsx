@@ -1,116 +1,81 @@
-/* eslint-disable no-unused-vars */
-/* eslint-disable react/prop-types */
 // client/src/components/admin-view/sidebar.jsx
-import {
-  BadgeCheck,
-  ChartNoAxesCombined,
-  LayoutDashboard,
-  ShoppingBasket,
-  Package,
-  Users,
-} from "lucide-react";
-import { Fragment } from "react";
-import { useNavigate } from "react-router-dom";
-import { Sheet, SheetContent, SheetHeader, SheetTitle } from "../ui/sheet";
+// Admin panel sidebar navigation — includes Delivery Locations management
 
-const adminSidebarMenuItems = [
+import { useNavigate, useLocation } from "react-router-dom";
+import {
+  LayoutDashboard,
+  ShoppingBag,
+  ClipboardList,
+  MapPin,
+  ChevronRight,
+} from "lucide-react";
+import { cn } from "@/lib/utils";
+
+const navItems = [
   {
-    id: "dashboard",
     label: "Dashboard",
     path: "/admin/dashboard",
-    icon: <LayoutDashboard />,
+    icon: LayoutDashboard,
   },
   {
-    id: "products",
     label: "Products",
     path: "/admin/products",
-    icon: <ShoppingBasket />,
+    icon: ShoppingBag,
   },
   {
-    id: "orders",
     label: "Orders",
     path: "/admin/orders",
-    icon: <BadgeCheck />,
+    icon: ClipboardList,
+  },
+  {
+    label: "Delivery Locations",
+    path: "/admin/delivery-locations",
+    icon: MapPin,
   },
 ];
 
-function MenuItems({ setOpen }) {
+function AdminSidebar() {
   const navigate = useNavigate();
+  const location = useLocation();
 
   return (
-    <nav className="mt-8 flex-col flex gap-2">
-      {adminSidebarMenuItems.map((menuItem) => (
-        <div
-          key={menuItem.id}
-          onClick={() => {
-            navigate(menuItem.path);
-            setOpen ? setOpen(false) : null;
-          }}
-          className="flex cursor-pointer text-xl items-center gap-2 rounded-md px-3 py-2 text-muted-foreground hover:bg-muted hover:text-foreground"
-        >
-          {menuItem.icon}
-          <span>{menuItem.label}</span>
-        </div>
-      ))}
-    </nav>
+    <aside className="w-64 min-h-screen bg-gray-900 text-white flex flex-col">
+      {/* Brand */}
+      <div className="px-6 py-6 border-b border-gray-700">
+        <h1 className="text-2xl font-black tracking-widest text-red-400">REKKER</h1>
+        <p className="text-xs text-gray-400 mt-0.5">Admin Panel</p>
+      </div>
+
+      {/* Nav */}
+      <nav className="flex-1 px-3 py-4 space-y-1">
+        {navItems.map((item) => {
+          const Icon = item.icon;
+          const active = location.pathname.startsWith(item.path);
+          return (
+            <button
+              key={item.path}
+              onClick={() => navigate(item.path)}
+              className={cn(
+                "w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all",
+                active
+                  ? "bg-red-700 text-white shadow-md"
+                  : "text-gray-300 hover:bg-gray-800 hover:text-white"
+              )}
+            >
+              <Icon className="w-5 h-5 shrink-0" />
+              <span className="flex-1 text-left">{item.label}</span>
+              {active && <ChevronRight className="w-4 h-4 opacity-70" />}
+            </button>
+          );
+        })}
+      </nav>
+
+      {/* Footer */}
+      <div className="px-6 py-4 border-t border-gray-700">
+        <p className="text-xs text-gray-500">© {new Date().getFullYear()} Rekker Limited</p>
+      </div>
+    </aside>
   );
 }
 
-function AdminSideBar({ open, setOpen }) {
-  const navigate = useNavigate();
-
-  return (
-    <Fragment>
-      <Sheet open={open} onOpenChange={setOpen}>
-        <SheetContent side="left" className="w-64">
-          <div className="flex flex-col h-full">
-            <SheetHeader className="border-b">
-              <SheetTitle className="flex gap-2 mt-5 mb-5">
-                <ChartNoAxesCombined size={30} />
-                <div>
-                  <h1 className="text-2xl font-extrabold">Rekker Admin</h1>
-                  <p className="text-xs text-muted-foreground font-normal">Multi-Brand Management</p>
-                </div>
-              </SheetTitle>
-            </SheetHeader>
-            <MenuItems setOpen={setOpen} />
-          </div>
-        </SheetContent>
-      </Sheet>
-      <aside className="hidden w-64 flex-col border-r bg-background p-6 lg:flex">
-        <div
-          onClick={() => navigate("/admin/dashboard")}
-          className="flex cursor-pointer items-center gap-2 mb-2"
-        >
-          <ChartNoAxesCombined size={30} />
-          <div>
-            <h1 className="text-2xl font-extrabold">Rekker Admin</h1>
-            <p className="text-xs text-muted-foreground">Multi-Brand Management</p>
-          </div>
-        </div>
-        <MenuItems />
-        
-        {/* Brand Info */}
-        <div className="mt-auto pt-6 border-t">
-          <p className="text-xs font-semibold text-muted-foreground mb-2">MANAGING BRANDS</p>
-          <div className="space-y-2">
-            <div className="flex items-center gap-2 text-sm">
-              <div className="w-2 h-2 rounded-full bg-blue-500"></div>
-              <span>Rekker</span>
-            </div>
-            <div className="flex items-center gap-2 text-sm">
-              <div className="w-2 h-2 rounded-full bg-green-500"></div>
-              <span>Saffron</span>
-            </div>
-            <div className="flex items-center gap-2 text-sm">
-              <div className="w-2 h-2 rounded-full bg-purple-500"></div>
-              <span>Cornells</span>
-            </div>
-          </div>
-        </div>
-      </aside>
-    </Fragment>
-  );
-}
-
-export default AdminSideBar;
+export default AdminSidebar;

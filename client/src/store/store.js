@@ -1,7 +1,11 @@
+// client/src/store/store.js
+// Redux store configuration
+
 import { configureStore } from "@reduxjs/toolkit";
 import authReducer from "./auth-slice";
 import adminProductsSlice from "./admin/products-slice";
 import adminOrderSlice from "./admin/order-slice";
+import adminDeliverySlice from "./admin/delivery-slice";
 
 import shopProductsSlice from "./shop/products-slice";
 import shopCartSlice from "./shop/cart-slice";
@@ -9,27 +13,25 @@ import shopAddressSlice from "./shop/address-slice";
 import shopOrderSlice from "./shop/order-slice";
 import shopSearchSlice from "./shop/search-slice";
 import shopReviewSlice from "./shop/review-slice";
+import shopDeliverySlice from "./shop/delivery-slice";
 import commonFeatureSlice from "./common-slice";
-import wishlistReducer from './shop/wishlist-slice';
+import wishlistReducer from "./shop/wishlist-slice";
 
 const store = configureStore({
   reducer: {
     auth: authReducer,
-
     adminProducts: adminProductsSlice,
     adminOrder: adminOrderSlice,
-
+    adminDelivery: adminDeliverySlice,
     shopProducts: shopProductsSlice,
     shopCart: shopCartSlice,
     shopAddress: shopAddressSlice,
     shopOrder: shopOrderSlice,
     shopSearch: shopSearchSlice,
     shopReview: shopReviewSlice,
-    shopWishlist: wishlistReducer, // ✅ Add this
-
-
+    shopDelivery: shopDeliverySlice,
+    shopWishlist: wishlistReducer,
     commonFeature: commonFeatureSlice,
-
   },
 });
 
