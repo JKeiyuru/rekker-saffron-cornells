@@ -1,15 +1,25 @@
-// client/src/App.jsx - Combined version with public shop routes
-import { lazy, Suspense, useEffect } from "react";
+// client/src/App.jsx
+// Main application component with fixed auth flow:
+//   1. Admin users redirect to /admin/dashboard after login
+//   2. Google sign-in for existing email/password accounts correctly updates UI
+//   3. Logout immediately updates UI — no reload needed (uses logout-flag module)
+
+import { lazy, Suspense, useEffect, useState } from "react";
 import { Routes, Route, Navigate, useLocation } from "react-router-dom";
 import { useDispatch, useSelector } from "react-redux";
-import { checkAuth, setFirebaseUser, clearAuth, syncFirebaseAuth } from "./store/auth-slice";
+import {
+  checkAuth,
+  setFirebaseUser,
+  clearAuth,
+  syncFirebaseAuth,
+} from "./store/auth-slice";
 import { onAuthStateChanged } from "firebase/auth";
 import { auth } from "./firebase";
-import { useState } from "react";
+import { getIsLoggingOut } from "./lib/logout-flag";
 
 // ── UI Components ────────────────────────────────────────────────────────────
 import LuxuryLoader from "./components/common/spectacular-loader";
-import { Skeleton } from "@/components/ui/skeleton"; // Keep if you want to use shadcn, otherwise remove
+import { Skeleton } from "@/components/ui/skeleton";
 
 // ── Layout Components ────────────────────────────────────────────────────────
 import AuthLayout from "./components/auth/layout";
@@ -30,7 +40,7 @@ const AdminOrders = lazy(() => import("./pages/admin-view/orders"));
 const AdminFeatures = lazy(() => import("./pages/admin-view/features"));
 const AdminDelivery = lazy(() => import("./pages/admin-view/delivery-locations"));
 
-// Shop - Public Pages
+// Shop - Public
 const LuxuryHome = lazy(() => import("./pages/shopping-view/home"));
 const About = lazy(() => import("./pages/shopping-view/about"));
 const Services = lazy(() => import("./pages/shopping-view/services"));
@@ -42,7 +52,7 @@ const CornellsBrand = lazy(() => import("./pages/shopping-view/brands/cornells")
 const ShoppingListing = lazy(() => import("./pages/shopping-view/listing"));
 const SearchProducts = lazy(() => import("./pages/shopping-view/search"));
 
-// Shop - Protected Pages
+// Shop - Protected
 const ShoppingCheckout = lazy(() => import("./pages/shopping-view/checkout"));
 const ShoppingAccount = lazy(() => import("./pages/shopping-view/account"));
 const PaypalReturnPage = lazy(() => import("./pages/shopping-view/paypal-return"));
@@ -53,7 +63,7 @@ const PaymentSuccessPage = lazy(() => import("./pages/shopping-view/payment-succ
 const NotFound = lazy(() => import("./pages/not-found"));
 const UnauthPage = lazy(() => import("./pages/unauth-page"));
 
-// ── Guards ───────────────────────────────────────────────────────────────────
+// ── Route Guards ──────────────────────────────────────────────────────────────
 function CheckAuthRoute({ isAuthenticated, user, children }) {
   if (isAuthenticated && user?.role === "admin") return <Navigate to="/admin/dashboard" replace />;
   if (isAuthenticated) return <Navigate to="/shop/home" replace />;
@@ -71,130 +81,105 @@ function AdminRoute({ isAuthenticated, user, children }) {
   return children;
 }
 
-// ── Loading Components ───────────────────────────────────────────────────────
+// ── Helpers ───────────────────────────────────────────────────────────────────
 function LoadingFallback() {
   return <LuxuryLoader />;
 }
 
-function PageLoader() {
-  return (
-    <div className="min-h-screen flex items-center justify-center">
-      <div className="space-y-3 w-full max-w-md px-4">
-        <Skeleton className="h-4 w-full" />
-        <Skeleton className="h-4 w-4/5" />
-        <Skeleton className="h-4 w-3/5" />
-      </div>
-    </div>
-  );
-}
-
-// ── Scroll to top ────────────────────────────────────────────────────────────
 function ScrollToTop() {
   const { pathname } = useLocation();
-
   useEffect(() => {
-    window.scrollTo({
-      top: 0,
-      left: 0,
-      behavior: "instant"
-    });
+    window.scrollTo({ top: 0, left: 0, behavior: "instant" });
   }, [pathname]);
-
   return null;
 }
 
-// ── Main App ─────────────────────────────────────────────────────────────────
+// ── Main App ──────────────────────────────────────────────────────────────────
 function App() {
   const dispatch = useDispatch();
   const { user, isAuthenticated, isLoading } = useSelector((state) => state.auth);
   const [firebaseInitialized, setFirebaseInitialized] = useState(false);
 
-  // Firebase Authentication Setup (from original)
   useEffect(() => {
     let mounted = true;
-
-    console.log('🚀 App: Setting up Firebase auth listener...');
+    console.log("🚀 App: Setting up Firebase auth listener...");
 
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
       if (!mounted) return;
 
+      // LOGOUT GUARD ─────────────────────────────────────────────────────────
+      // When logoutUser() is dispatched it calls signOut(auth) which triggers
+      // this listener with firebaseUser = null. If we don't guard here, we'll
+      // call checkAuth() which will find the still-valid JWT cookie and
+      // re-authenticate the user silently, so the UI stays logged-in.
+      // getIsLoggingOut() returns true for ~1.5 s after signOut() is called.
+      if (getIsLoggingOut()) {
+        console.log("🔒 Logout in progress — skipping auth state change");
+        if (mounted) setFirebaseInitialized(true);
+        return;
+      }
+
       try {
         if (firebaseUser) {
-          console.log('🔥 Firebase user detected:', firebaseUser.email);
-          
-          dispatch(setFirebaseUser({
-            uid: firebaseUser.uid,
-            email: firebaseUser.email,
-            displayName: firebaseUser.displayName
-          }));
+          console.log("🔥 Firebase user detected:", firebaseUser.email);
 
-          console.log('🔄 Syncing Firebase user with backend...');
-          const syncResult = await dispatch(syncFirebaseAuth(firebaseUser));
-          
-          console.log('🔄 Firebase sync result:', syncResult.payload?.success);
-          
+          dispatch(
+            setFirebaseUser({
+              uid: firebaseUser.uid,
+              email: firebaseUser.email,
+              displayName: firebaseUser.displayName,
+            })
+          );
+
+          console.log("🔄 Syncing Firebase user with backend...");
+          await dispatch(syncFirebaseAuth(firebaseUser));
         } else {
-          console.log('🚫 No Firebase user detected');
-          
+          console.log("🚫 No Firebase user — checking traditional auth...");
           dispatch(setFirebaseUser(null));
-          
-          console.log('🔍 Checking for traditional auth...');
           await dispatch(checkAuth());
         }
       } catch (error) {
-        console.error('❌ Auth verification error:', error);
-        if (mounted) {
-          dispatch(clearAuth());
-        }
+        console.error("❌ Auth verification error:", error);
+        if (mounted) dispatch(clearAuth());
       } finally {
-        if (mounted) {
-          setFirebaseInitialized(true);
-        }
+        if (mounted) setFirebaseInitialized(true);
       }
     });
 
     return () => {
-      console.log('🧹 App: Cleaning up Firebase auth listener...');
+      console.log("🧹 App: Cleaning up Firebase auth listener...");
       mounted = false;
       unsubscribe();
     };
   }, [dispatch]);
 
-  // Show loader while initializing
   if (!firebaseInitialized || isLoading) {
-    console.log('⏳ App: Showing loader...', { firebaseInitialized, isLoading });
     return <LuxuryLoader />;
   }
-
-  console.log('🎯 App render - Auth State:', { 
-    isLoading, 
-    isAuthenticated, 
-    userRole: user?.role,
-    userEmail: user?.email || user?.userName,
-    firebaseInitialized 
-  });
 
   return (
     <div className="flex flex-col overflow-hidden bg-white">
       <ScrollToTop />
       <Suspense fallback={<LoadingFallback />}>
         <Routes>
-          {/* Root redirect - based on auth status */}
-          <Route 
-            path="/" 
+          {/* Root redirect */}
+          <Route
+            path="/"
             element={
-              <Navigate 
+              <Navigate
                 to={
-                  isAuthenticated 
-                    ? (user?.role === "admin" ? "/admin/dashboard" : "/shop/home") 
-                    : "/shop/home"  // Changed from /auth/login to /shop/home for public access
-                } 
-                replace 
+                  isAuthenticated
+                    ? user?.role === "admin"
+                      ? "/admin/dashboard"
+                      : "/shop/home"
+                    : "/shop/home"
+                }
+                replace
               />
-            } 
+            }
           />
 
-          {/* ── Auth Routes ─────────────────────────────────────────────────────── */}
+          {/* Auth Routes */}
           <Route
             path="/auth"
             element={
@@ -206,12 +191,10 @@ function App() {
             <Route path="login" element={<AuthLogin />} />
             <Route path="register" element={<AuthRegister />} />
           </Route>
-
-          {/* Forgot/reset password — outside auth layout guard */}
           <Route path="/auth/forgot-password" element={<ForgotPassword />} />
           <Route path="/auth/reset-password" element={<ResetPassword />} />
 
-          {/* ── Admin Routes ────────────────────────────────────────────────────── */}
+          {/* Admin Routes */}
           <Route
             path="/admin"
             element={
@@ -227,9 +210,8 @@ function App() {
             <Route path="delivery-locations" element={<AdminDelivery />} />
           </Route>
 
-          {/* ── Shopping Routes - PUBLIC by default ─────────────────────────────── */}
+          {/* Shopping Routes — public by default */}
           <Route path="/shop" element={<ShoppingLayout />}>
-            {/* Public Routes - accessible to everyone */}
             <Route path="home" element={<LuxuryHome />} />
             <Route path="about" element={<About />} />
             <Route path="services" element={<Services />} />
@@ -240,8 +222,8 @@ function App() {
             <Route path="brands/cornells" element={<CornellsBrand />} />
             <Route path="listing" element={<ShoppingListing />} />
             <Route path="search" element={<SearchProducts />} />
-            
-            {/* Protected Routes - require authentication */}
+
+            {/* Protected */}
             <Route
               path="checkout"
               element={
@@ -276,17 +258,16 @@ function App() {
             />
           </Route>
 
-          {/* PayPal pages — standalone (protected) */}
-          <Route 
-            path="/shop/paypal-cancel" 
+          <Route
+            path="/shop/paypal-cancel"
             element={
               <ProtectedRoute isAuthenticated={isAuthenticated}>
                 <PaypalCancelPage />
               </ProtectedRoute>
-            } 
+            }
           />
 
-          {/* ── Error Routes ────────────────────────────────────────────────────── */}
+          {/* Error pages */}
           <Route path="/unauth-page" element={<UnauthPage />} />
           <Route path="*" element={<NotFound />} />
         </Routes>

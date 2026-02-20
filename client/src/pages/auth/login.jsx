@@ -1,8 +1,11 @@
 // client/src/pages/auth/login.jsx
+// Fixed: admin users are redirected to /admin/dashboard after login.
+// Fixed: Google sign-in correctly updates UI without requiring a page reload.
+
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useDispatch, useSelector } from "react-redux";
-import { loginUser } from "@/store/auth-slice";
+import { loginUser, syncFirebaseAuth } from "@/store/auth-slice";
 import { useToast } from "@/components/ui/use-toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -24,29 +27,38 @@ function LoginPage() {
   const handleChange = (e) =>
     setFormData((prev) => ({ ...prev, [e.target.name]: e.target.value }));
 
+  // Helper: navigate based on role
+  const navigateByRole = (role) => {
+    if (role === "admin") {
+      navigate("/admin/dashboard", { replace: true });
+    } else {
+      navigate("/shop/home", { replace: true });
+    }
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
-    
+
     try {
-      // Sign in with Firebase
+      // 1. Sign in with Firebase
       const userCredential = await signInWithEmailAndPassword(
         auth,
         formData.email,
         formData.password
       );
-      
-      // Login with backend
-      const result = await dispatch(loginUser({ 
-        formData, 
-        firebaseUid: userCredential.user.uid 
-      }));
-      
-      if (loginUser.fulfilled.match(result)) {
-        toast({ 
+
+      // 2. Login with backend — this sets the JWT cookie and returns the user role
+      const result = await dispatch(
+        loginUser({ formData, firebaseUid: userCredential.user.uid })
+      );
+
+      if (loginUser.fulfilled.match(result) && result.payload?.success) {
+        toast({
           title: "Welcome back!",
-          description: "Successfully logged in."
+          description: "Successfully logged in.",
         });
-        navigate("/shop/home");
+        // Use the role returned by the server to decide where to navigate
+        navigateByRole(result.payload.user?.role);
       } else {
         toast({
           title: result.payload?.message || "Login failed",
@@ -56,21 +68,20 @@ function LoginPage() {
       }
     } catch (error) {
       console.error("Login error:", error);
-      
-      // Handle Firebase errors
+
       let errorMessage = "Login failed. Please check your credentials.";
-      if (error.code === 'auth/user-not-found') {
+      if (error.code === "auth/user-not-found") {
         errorMessage = "No account found with this email.";
-      } else if (error.code === 'auth/wrong-password') {
+      } else if (error.code === "auth/wrong-password" || error.code === "auth/invalid-credential") {
         errorMessage = "Incorrect password.";
-      } else if (error.code === 'auth/invalid-email') {
+      } else if (error.code === "auth/invalid-email") {
         errorMessage = "Invalid email address.";
-      } else if (error.code === 'auth/too-many-requests') {
+      } else if (error.code === "auth/too-many-requests") {
         errorMessage = "Too many failed attempts. Please try again later.";
-      } else if (error.code === 'auth/user-disabled') {
+      } else if (error.code === "auth/user-disabled") {
         errorMessage = "This account has been disabled.";
       }
-      
+
       toast({
         title: "Authentication Failed",
         description: errorMessage,
@@ -79,12 +90,16 @@ function LoginPage() {
     }
   };
 
+  // Called by AuthProviders after a successful Google sign-in.
+  // At this point syncFirebaseAuth has already run (inside AuthProviders) and
+  // the Redux state is updated with the user + role, so we can navigate directly.
   const handleGoogleSuccess = (userData) => {
-    toast({ 
+    toast({
       title: "Welcome back!",
-      description: "Successfully logged in with Google."
+      description: "Successfully logged in with Google.",
     });
-    navigate("/shop/home");
+    // userData comes from syncFirebaseAuth payload which includes the user object
+    navigateByRole(userData?.user?.role);
   };
 
   const handleGoogleError = (error) => {
@@ -180,8 +195,8 @@ function LoginPage() {
             <div className="flex-1 h-px bg-gray-200" />
           </div>
 
-          {/* Google Sign-In - Using AuthProviders component */}
-          <AuthProviders 
+          {/* Google Sign-In */}
+          <AuthProviders
             onSuccess={handleGoogleSuccess}
             onError={handleGoogleError}
           />

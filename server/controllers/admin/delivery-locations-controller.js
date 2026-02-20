@@ -1,5 +1,7 @@
 // server/controllers/admin/delivery-locations-controller.js
-// Admin controller for managing delivery zones and fees
+// Admin controller for managing delivery zones and fees.
+// The seedFromStaticData function reads from server/config/kenya-location-data-seed.js
+// and inserts locations into MongoDB, skipping any that already exist.
 
 const DeliveryLocation = require("../../models/DeliveryLocation");
 
@@ -61,12 +63,15 @@ const createDeliveryLocation = async (req, res) => {
     });
 
     await newLocation.save();
-    res.status(201).json({ success: true, data: newLocation, message: "Location added successfully" });
+    res
+      .status(201)
+      .json({ success: true, data: newLocation, message: "Location added successfully" });
   } catch (error) {
     if (error.code === 11000) {
       return res.status(409).json({
         success: false,
-        message: "A location with this county / sub-county / location name already exists",
+        message:
+          "A location with this county / sub-county / location name already exists",
       });
     }
     console.error("Create delivery location error:", error);
@@ -77,7 +82,8 @@ const createDeliveryLocation = async (req, res) => {
 // PUT update a delivery location
 const updateDeliveryLocation = async (req, res) => {
   try {
-    const { county, subCounty, location, deliveryFee, isFreeDelivery, isActive, notes } = req.body;
+    const { county, subCounty, location, deliveryFee, isFreeDelivery, isActive, notes } =
+      req.body;
 
     const updateData = {
       ...(county && { county: county.trim() }),
@@ -99,12 +105,15 @@ const updateDeliveryLocation = async (req, res) => {
       return res.status(404).json({ success: false, message: "Location not found" });
     }
 
-    res.status(200).json({ success: true, data: updated, message: "Location updated successfully" });
+    res
+      .status(200)
+      .json({ success: true, data: updated, message: "Location updated successfully" });
   } catch (error) {
     if (error.code === 11000) {
       return res.status(409).json({
         success: false,
-        message: "A location with this county / sub-county / location name already exists",
+        message:
+          "A location with this county / sub-county / location name already exists",
       });
     }
     console.error("Update delivery location error:", error);
@@ -158,7 +167,9 @@ const getLocationsForArea = async (req, res) => {
       county,
       subCounty,
       isActive: true,
-    }).select("location deliveryFee isFreeDelivery").sort({ location: 1 });
+    })
+      .select("location deliveryFee isFreeDelivery")
+      .sort({ location: 1 });
 
     res.status(200).json({ success: true, data: locations });
   } catch (error) {
@@ -166,10 +177,14 @@ const getLocationsForArea = async (req, res) => {
   }
 };
 
-// POST bulk seed from the static kenya-location-data (one-time operation)
+// POST /seed — bulk-insert locations from the static config file.
+// Already-existing entries (same county + subCounty + location) are skipped,
+// so it is safe to call this endpoint multiple times — it is idempotent.
 const seedFromStaticData = async (req, res) => {
   try {
+    // Load the server-side seed config
     const { kenyaLocationData } = require("../../config/kenya-location-data-seed");
+
     let created = 0;
     let skipped = 0;
 
@@ -182,13 +197,18 @@ const seedFromStaticData = async (req, res) => {
               subCounty: subCountyKey,
               location: loc.name,
               deliveryFee: loc.deliveryFee,
+              // Mark as free delivery when fee is 0 (e.g. Nairobi CBD)
               isFreeDelivery: loc.deliveryFee === 0,
               isActive: true,
             });
             created++;
           } catch (e) {
-            if (e.code === 11000) skipped++;
-            else throw e;
+            if (e.code === 11000) {
+              // Duplicate — already exists, skip silently
+              skipped++;
+            } else {
+              throw e;
+            }
           }
         }
       }
@@ -196,7 +216,9 @@ const seedFromStaticData = async (req, res) => {
 
     res.status(200).json({
       success: true,
-      message: `Seed complete: ${created} created, ${skipped} skipped (already existed)`,
+      message: `Seed complete: ${created} location(s) added, ${skipped} already existed and were skipped.`,
+      created,
+      skipped,
     });
   } catch (error) {
     console.error("Seed error:", error);
