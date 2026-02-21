@@ -1,5 +1,9 @@
 // client/src/pages/shopping-view/checkout.jsx
-// Multi-step checkout: 1) Delivery Address  2) Payment Method  3) Order Review  4) Success
+// Rekker multi-step checkout: Delivery → Payment → Review → Success.
+// Fixed: M-Pesa now calls /api/shop/order/mpesa/initiate (was /api/shop/mpesa/initiate).
+// Fixed: PayPal redirect URLs use VITE_CLIENT_BASE_URL env var, not localhost.
+// Fixed: cart items extracted correctly from both array and object redux shapes.
+// Fixed: COD orders no longer go through the PayPal SDK.
 
 import { useEffect, useState } from "react";
 import { useDispatch, useSelector } from "react-redux";
@@ -14,41 +18,38 @@ import {
   clearLocations,
 } from "@/store/shop/delivery-slice";
 import { useToast } from "@/components/ui/use-toast";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import { Button }   from "@/components/ui/button";
+import { Input }    from "@/components/ui/input";
+import { Label }    from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Separator } from "@/components/ui/separator";
 import {
   MapPin, CreditCard, ClipboardList, CheckCircle,
   ChevronRight, ChevronLeft, Loader2, MessageCircle,
-  Truck, Smartphone, Wallet, Phone, ShoppingCart
+  Truck, Smartphone, Wallet, Phone, ShoppingCart,
 } from "lucide-react";
 
-// ─── Step labels ──────────────────────────────────────────────────────────────
+// ─── Constants ────────────────────────────────────────────────────────────────
 const STEPS = [
   { id: 1, label: "Delivery", icon: MapPin },
-  { id: 2, label: "Payment", icon: CreditCard },
-  { id: 3, label: "Review", icon: ClipboardList },
-  { id: 4, label: "Done", icon: CheckCircle },
+  { id: 2, label: "Payment",  icon: CreditCard },
+  { id: 3, label: "Review",   icon: ClipboardList },
+  { id: 4, label: "Done",     icon: CheckCircle },
 ];
 
 const WHATSAPP_NUMBER = "254796183064";
 
+// ─── Helpers ──────────────────────────────────────────────────────────────────
 function formatKES(amount) {
   return `KES ${Number(amount || 0).toLocaleString()}`;
 }
 
-// ─── Helper to extract cart items array from Redux state ──────────────────────
+/** Extract the cart items array regardless of whether Redux stored the full
+ *  cart object (with .items) or a bare array (e.g. after addToCart). */
 function extractCartItems(cartState) {
   if (!cartState) return [];
-  // The cart slice sets cartItems to the full cart object (with .items) OR an array
-  if (Array.isArray(cartState.cartItems)) {
-    return cartState.cartItems;
-  }
-  if (cartState.cartItems && Array.isArray(cartState.cartItems.items)) {
-    return cartState.cartItems.items;
-  }
+  if (Array.isArray(cartState.cartItems))                              return cartState.cartItems;
+  if (cartState.cartItems && Array.isArray(cartState.cartItems.items)) return cartState.cartItems.items;
   return [];
 }
 
@@ -57,37 +58,27 @@ function StepIndicator({ currentStep }) {
   return (
     <div className="flex items-center justify-center mb-8">
       {STEPS.map((step, idx) => {
-        const Icon = step.icon;
+        const Icon   = step.icon;
         const active = currentStep === step.id;
-        const done = currentStep > step.id;
+        const done   = currentStep > step.id;
         return (
           <div key={step.id} className="flex items-center">
             <div className="flex flex-col items-center">
-              <div
-                className={`w-10 h-10 rounded-full flex items-center justify-center border-2 transition-all ${
-                  done
-                    ? "bg-red-700 border-red-700 text-white"
-                    : active
-                    ? "border-red-700 text-red-700 bg-red-50"
-                    : "border-gray-200 text-gray-400 bg-white"
-                }`}
-              >
+              <div className={`w-10 h-10 rounded-full flex items-center justify-center border-2 transition-all ${
+                done   ? "bg-red-700 border-red-700 text-white"
+                : active ? "border-red-700 text-red-700 bg-red-50"
+                         : "border-gray-200 text-gray-400 bg-white"
+              }`}>
                 {done ? <CheckCircle className="w-5 h-5" /> : <Icon className="w-5 h-5" />}
               </div>
-              <span
-                className={`text-xs mt-1 font-medium ${
-                  active ? "text-red-700" : done ? "text-gray-600" : "text-gray-400"
-                }`}
-              >
-                {step.label}
-              </span>
+              <span className={`text-xs mt-1 font-medium ${
+                active ? "text-red-700" : done ? "text-gray-600" : "text-gray-400"
+              }`}>{step.label}</span>
             </div>
             {idx < STEPS.length - 1 && (
-              <div
-                className={`h-0.5 w-10 sm:w-16 mx-1 mb-4 transition-all ${
-                  currentStep > step.id ? "bg-red-700" : "bg-gray-200"
-                }`}
-              />
+              <div className={`h-0.5 w-10 sm:w-16 mx-1 mb-4 transition-all ${
+                currentStep > step.id ? "bg-red-700" : "bg-gray-200"
+              }`} />
             )}
           </div>
         );
@@ -96,32 +87,26 @@ function StepIndicator({ currentStep }) {
   );
 }
 
-// ─── Cart summary sidebar ─────────────────────────────────────────────────────
+// ─── Order summary sidebar ────────────────────────────────────────────────────
 function OrderSummary({ cartItems = [], deliveryFee, step }) {
-  const safeCartItems = Array.isArray(cartItems) ? cartItems : [];
-
-  const subtotal = safeCartItems.reduce((s, i) => {
+  const safe = Array.isArray(cartItems) ? cartItems : [];
+  const subtotal = safe.reduce((s, i) => {
     const price = Number(i?.salePrice > 0 ? i.salePrice : i?.price) || 0;
-    const quantity = Number(i?.quantity) || 1;
-    return s + price * quantity;
+    return s + price * (Number(i?.quantity) || 1);
   }, 0);
-
   const total = subtotal + (deliveryFee || 0);
 
   return (
     <div className="bg-gray-50 rounded-xl p-5 space-y-4 sticky top-4">
       <h3 className="font-semibold text-gray-800">Order Summary</h3>
       <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
-        {safeCartItems.map((item, idx) => {
-          const price = Number(item?.salePrice > 0 ? item.salePrice : item?.price) || 0;
+        {safe.map((item, idx) => {
+          const price    = Number(item?.salePrice > 0 ? item.salePrice : item?.price) || 0;
           const quantity = Number(item?.quantity) || 1;
           return (
             <div key={idx} className="flex gap-3 items-center">
-              <img
-                src={item?.image || ""}
-                alt={item?.title || "Product"}
-                className="w-12 h-12 rounded-lg object-cover border"
-              />
+              <img src={item?.image || ""} alt={item?.title || "Product"}
+                   className="w-12 h-12 rounded-lg object-cover border" />
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-medium truncate">{item?.title || "Product"}</p>
                 <p className="text-xs text-gray-500">Qty: {quantity}</p>
@@ -134,21 +119,15 @@ function OrderSummary({ cartItems = [], deliveryFee, step }) {
       <Separator />
       <div className="space-y-1.5 text-sm">
         <div className="flex justify-between text-gray-600">
-          <span>Subtotal</span>
-          <span>{formatKES(subtotal)}</span>
+          <span>Subtotal</span><span>{formatKES(subtotal)}</span>
         </div>
         <div className="flex justify-between text-gray-600">
-          <span className="flex items-center gap-1">
-            <Truck className="w-3.5 h-3.5" /> Delivery
-          </span>
+          <span className="flex items-center gap-1"><Truck className="w-3.5 h-3.5" /> Delivery</span>
           <span>
-            {deliveryFee === 0 && step >= 2 ? (
-              <span className="text-green-600 font-medium">FREE</span>
-            ) : deliveryFee > 0 ? (
-              formatKES(deliveryFee)
-            ) : (
-              <span className="text-gray-400">TBD</span>
-            )}
+            {deliveryFee === 0 && step >= 2
+              ? <span className="text-green-600 font-medium">FREE</span>
+              : deliveryFee > 0 ? formatKES(deliveryFee)
+              : <span className="text-gray-400">TBD</span>}
           </span>
         </div>
         <Separator />
@@ -161,69 +140,59 @@ function OrderSummary({ cartItems = [], deliveryFee, step }) {
   );
 }
 
-// ─── MAIN COMPONENT ──────────────────────────────────────────────────────────
+// ─── MAIN COMPONENT ───────────────────────────────────────────────────────────
 function CheckoutPage() {
-  const dispatch = useDispatch();
-  const navigate = useNavigate();
+  const dispatch  = useDispatch();
+  const navigate  = useNavigate();
   const { toast } = useToast();
 
-  const { user } = useSelector((s) => s.auth || {});
-  const shopCart = useSelector((s) => s.shopCart) || {};
-  const shopDelivery = useSelector((s) => s.shopDelivery) || {};
-
-  // ── FIX: Properly extract cart items from either array or object structure ──
-  const cartItems = extractCartItems(shopCart);
+  const { user }         = useSelector((s) => s.auth  || {});
+  const shopCart         = useSelector((s) => s.shopCart) || {};
+  const shopDelivery     = useSelector((s) => s.shopDelivery) || {};
+  const cartItems        = extractCartItems(shopCart);
 
   const {
     counties = [],
     subCounties = [],
-    locations = [],
+    locations  = [],
     isLoading: deliveryLoading = false,
   } = shopDelivery;
 
-  const [step, setStep] = useState(1);
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [placedOrder, setPlacedOrder] = useState(null);
+  const [step,          setStep]          = useState(1);
+  const [isSubmitting,  setIsSubmitting]  = useState(false);
+  const [placedOrder,   setPlacedOrder]   = useState(null);
   const [isPageLoading, setIsPageLoading] = useState(true);
 
-  // ── Step 1: Address ────────────────────────────────────────────────────────
+  // Step 1 — address
   const [address, setAddress] = useState({
-    county: "",
-    subCounty: "",
-    location: "",
-    specificAddress: "",
-    phone: "",
-    notes: "",
+    county: "", subCounty: "", location: "",
+    specificAddress: "", phone: "", notes: "",
   });
-  const [deliveryFee, setDeliveryFee] = useState(null);
+  const [deliveryFee,    setDeliveryFee]    = useState(null);
   const [isFreeDelivery, setIsFreeDelivery] = useState(false);
 
-  // ── Step 2: Payment ────────────────────────────────────────────────────────
+  // Step 2 — payment
   const [paymentMethod, setPaymentMethod] = useState("");
-  const [mpesaPhone, setMpesaPhone] = useState("");
+  const [mpesaPhone,    setMpesaPhone]    = useState("");
 
-  // Derived totals
+  // Derived amounts
   const subtotal = cartItems.reduce((s, i) => {
     const price = Number(i?.salePrice > 0 ? i.salePrice : i?.price) || 0;
-    const quantity = Number(i?.quantity) || 1;
-    return s + price * quantity;
+    return s + price * (Number(i?.quantity) || 1);
   }, 0);
-
   const finalDeliveryFee = isFreeDelivery ? 0 : deliveryFee || 0;
-  const totalAmount = subtotal + finalDeliveryFee;
+  const totalAmount      = subtotal + finalDeliveryFee;
 
-  // ── Fetch counties on mount ────────────────────────────────────────────────
-  useEffect(() => {
-    dispatch(fetchCounties());
-  }, [dispatch]);
+  // Fetch counties on mount
+  useEffect(() => { dispatch(fetchCounties()); }, [dispatch]);
 
-  // ── Page loading timeout ──────────────────────────────────────────────────
+  // Short loading delay so cart data has time to populate
   useEffect(() => {
-    const timer = setTimeout(() => setIsPageLoading(false), 800);
-    return () => clearTimeout(timer);
+    const t = setTimeout(() => setIsPageLoading(false), 800);
+    return () => clearTimeout(t);
   }, []);
 
-  // ── County change ────────────────────────────────────────────────────────
+  // ── Address cascades ────────────────────────────────────────────────────────
   const handleCountyChange = (county) => {
     setAddress((a) => ({ ...a, county, subCounty: "", location: "" }));
     setDeliveryFee(null);
@@ -250,109 +219,109 @@ function CheckoutPage() {
     }
   };
 
+  // ── Validation ──────────────────────────────────────────────────────────────
   const validateAddress = () => {
-    if (!address.county) {
-      toast({ title: "Please select a county", variant: "destructive" });
-      return false;
-    }
-    if (!address.subCounty) {
-      toast({ title: "Please select a sub-county", variant: "destructive" });
-      return false;
-    }
-    if (!address.location) {
-      toast({ title: "Please select a delivery location", variant: "destructive" });
-      return false;
-    }
+    if (!address.county)    { toast({ title: "Please select a county",           variant: "destructive" }); return false; }
+    if (!address.subCounty) { toast({ title: "Please select a sub-county",       variant: "destructive" }); return false; }
+    if (!address.location)  { toast({ title: "Please select a delivery location", variant: "destructive" }); return false; }
     if (!address.phone || address.phone.length < 9) {
-      toast({ title: "Please enter a valid phone number", variant: "destructive" });
-      return false;
+      toast({ title: "Please enter a valid phone number", variant: "destructive" }); return false;
     }
     return true;
   };
 
   const validatePayment = () => {
-    if (!paymentMethod) {
-      toast({ title: "Please select a payment method", variant: "destructive" });
-      return false;
-    }
+    if (!paymentMethod) { toast({ title: "Please select a payment method", variant: "destructive" }); return false; }
     if (paymentMethod === "mpesa" && (!mpesaPhone || mpesaPhone.length < 9)) {
-      toast({ title: "Please enter a valid M-Pesa number", variant: "destructive" });
-      return false;
+      toast({ title: "Please enter a valid M-Pesa number", variant: "destructive" }); return false;
     }
     return true;
   };
 
-  // ── Place order ────────────────────────────────────────────────────────────
+  // ── Place order ─────────────────────────────────────────────────────────────
   const handlePlaceOrder = async () => {
     setIsSubmitting(true);
     try {
-      const orderPayload = {
+      const baseOrderPayload = {
         userId: user?.id,
         cartItems: cartItems.map((i) => ({
           productId: i.productId,
-          title: i.title,
-          image: i.image,
-          price: i.salePrice > 0 ? i.salePrice : i.price,
-          quantity: i.quantity,
+          title:     i.title,
+          image:     i.image,
+          price:     i.salePrice > 0 ? i.salePrice : i.price,
+          quantity:  i.quantity,
         })),
         addressInfo: {
           ...address,
-          fullAddress: `${address.specificAddress ? address.specificAddress + ", " : ""}${address.location}, ${address.subCounty}, ${address.county}`,
+          fullAddress: [
+            address.specificAddress,
+            address.location,
+            address.subCounty,
+            address.county,
+          ].filter(Boolean).join(", "),
         },
         paymentMethod,
-        paymentStatus: "pending",
-        orderStatus: "pending",
+        paymentStatus:  "pending",
+        orderStatus:    "pending",
         totalAmount,
         subtotalAmount: subtotal,
-        deliveryFee: finalDeliveryFee,
-        orderDate: new Date().toISOString(),
-        orderUpdateDate: new Date().toISOString(),
+        deliveryFee:    finalDeliveryFee,
+        orderDate:      new Date().toISOString(),
       };
 
+      // ── COD ─────────────────────────────────────────────────────────────────
       if (paymentMethod === "cod") {
         const res = await axios.post(
           `${API_BASE_URL}/api/shop/order/create`,
-          orderPayload,
+          baseOrderPayload,
           { withCredentials: true }
         );
         if (res.data.success) {
-          setPlacedOrder({ ...orderPayload, _id: res.data.orderId });
+          setPlacedOrder({ ...baseOrderPayload, _id: res.data.orderId });
           setStep(4);
         } else {
           throw new Error(res.data.message || "Failed to place order");
         }
-      } else if (paymentMethod === "mpesa") {
+      }
+
+      // ── M-PESA ──────────────────────────────────────────────────────────────
+      else if (paymentMethod === "mpesa") {
         const res = await axios.post(
-          `${API_BASE_URL}/api/shop/mpesa/initiate`,
+          `${API_BASE_URL}/api/shop/order/mpesa/initiate`,   // ← fixed endpoint
           {
-            phone: mpesaPhone,
-            amount: totalAmount,
-            callbackUrl: `${API_BASE_URL}/api/shop/mpesa/callback`,
-            orderData: orderPayload,
+            phone:     mpesaPhone,
+            amount:    totalAmount,
+            orderData: baseOrderPayload,
           },
           { withCredentials: true }
         );
         if (res.data.success) {
-          setPlacedOrder({ ...orderPayload, _id: res.data.orderId });
+          setPlacedOrder({ ...baseOrderPayload, _id: res.data.orderId });
           setStep(4);
         } else {
           throw new Error(res.data.message || "M-Pesa initiation failed");
         }
-      } else if (paymentMethod === "paypal") {
+      }
+
+      // ── PAYPAL ──────────────────────────────────────────────────────────────
+      else if (paymentMethod === "paypal") {
         const res = await axios.post(
           `${API_BASE_URL}/api/shop/order/create`,
-          orderPayload,
+          baseOrderPayload,
           { withCredentials: true }
         );
         if (res.data.approvalURL) {
+          // Save orderId in sessionStorage so paypal-return.jsx can capture it
+          sessionStorage.setItem("pendingOrderId", res.data.orderId);
           window.location.href = res.data.approvalURL;
         } else {
-          throw new Error("Could not get PayPal payment URL");
+          throw new Error(res.data.message || "Could not get PayPal payment URL");
         }
       }
+
     } catch (err) {
       toast({
-        title: err.response?.data?.message || err.message || "Something went wrong",
+        title:   err.response?.data?.message || err.message || "Something went wrong",
         variant: "destructive",
       });
     } finally {
@@ -363,18 +332,18 @@ function CheckoutPage() {
   const buildWhatsAppLink = () => {
     const orderId = placedOrder?._id?.toString().slice(-8).toUpperCase() || "NEW";
     const msg = encodeURIComponent(
-      `Hi Rekker! I just placed order #${orderId} for ${formatKES(totalAmount)}. Delivery to ${address.location}, ${address.subCounty}, ${address.county}. Payment: ${
-        paymentMethod === "cod"
-          ? "Cash on Delivery"
-          : paymentMethod === "mpesa"
-          ? "M-Pesa"
-          : "PayPal"
+      `Hi Rekker! I just placed order #${orderId} for ${formatKES(totalAmount)}. ` +
+      `Delivery to ${address.location}, ${address.subCounty}, ${address.county}. ` +
+      `Payment: ${
+        paymentMethod === "cod"   ? "Cash on Delivery"
+        : paymentMethod === "mpesa" ? "M-Pesa"
+        : "PayPal"
       }.`
     );
     return `https://wa.me/${WHATSAPP_NUMBER}?text=${msg}`;
   };
 
-  // ── Loading state ─────────────────────────────────────────────────────────
+  // ── Loading / empty states ──────────────────────────────────────────────────
   if (isPageLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -386,7 +355,6 @@ function CheckoutPage() {
     );
   }
 
-  // ── Empty cart ────────────────────────────────────────────────────────────
   if (cartItems.length === 0) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -395,11 +363,8 @@ function CheckoutPage() {
             <ShoppingCart className="w-10 h-10 text-gray-400" />
           </div>
           <h2 className="text-2xl font-bold text-gray-800 mb-2">Your cart is empty</h2>
-          <p className="text-gray-600 mb-6">Add some products to your cart before checkout</p>
-          <Button
-            onClick={() => navigate("/shop/listing")}
-            className="bg-red-700 hover:bg-red-800"
-          >
+          <p className="text-gray-600 mb-6">Add some products to your cart before checking out.</p>
+          <Button onClick={() => navigate("/shop/listing")} className="bg-red-700 hover:bg-red-800">
             Continue Shopping
           </Button>
         </div>
@@ -407,16 +372,14 @@ function CheckoutPage() {
     );
   }
 
-  // ─── RENDER ───────────────────────────────────────────────────────────────
+  // ── RENDER ──────────────────────────────────────────────────────────────────
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Top bar */}
       <div className="bg-white border-b">
         <div className="max-w-6xl mx-auto px-4 py-4 flex items-center justify-between">
-          <button
-            onClick={() => navigate("/shop/listing")}
-            className="text-sm text-gray-500 hover:text-red-700 flex items-center gap-1 transition-colors"
-          >
+          <button onClick={() => navigate("/shop/listing")}
+            className="text-sm text-gray-500 hover:text-red-700 flex items-center gap-1 transition-colors">
             <ChevronLeft className="w-4 h-4" /> Continue Shopping
           </button>
           <h1 className="text-xl font-bold text-red-700 tracking-wider">REKKER</h1>
@@ -428,10 +391,10 @@ function CheckoutPage() {
         <StepIndicator currentStep={step} />
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          {/* ── Main panel ──────────────────────────────────────────────── */}
+          {/* ── Main panel ─────────────────────────────────────────────────── */}
           <div className="lg:col-span-2">
 
-            {/* ═══ STEP 1: DELIVERY ═════════════════════════════════════════ */}
+            {/* ═══ STEP 1: DELIVERY ══════════════════════════════════════════ */}
             {step === 1 && (
               <div className="bg-white rounded-2xl shadow-sm p-6 space-y-5">
                 <div className="flex items-center gap-2 mb-2">
@@ -448,12 +411,9 @@ function CheckoutPage() {
                     onChange={(e) => handleCountyChange(e.target.value)}
                   >
                     <option value="">Select county...</option>
-                    {Array.isArray(counties) &&
-                      counties.map((c) => (
-                        <option key={c} value={c}>
-                          {c}
-                        </option>
-                      ))}
+                    {Array.isArray(counties) && counties.map((c) => (
+                      <option key={c} value={c}>{c}</option>
+                    ))}
                   </select>
                   {deliveryLoading && address.county && !address.subCounty && (
                     <p className="text-xs text-gray-400 flex items-center gap-1">
@@ -472,12 +432,9 @@ function CheckoutPage() {
                     disabled={!address.county || subCounties.length === 0}
                   >
                     <option value="">Select sub-county...</option>
-                    {Array.isArray(subCounties) &&
-                      subCounties.map((s) => (
-                        <option key={s} value={s}>
-                          {s}
-                        </option>
-                      ))}
+                    {Array.isArray(subCounties) && subCounties.map((s) => (
+                      <option key={s} value={s}>{s}</option>
+                    ))}
                   </select>
                 </div>
 
@@ -491,25 +448,19 @@ function CheckoutPage() {
                     disabled={!address.subCounty || locations.length === 0}
                   >
                     <option value="">Select area...</option>
-                    {Array.isArray(locations) &&
-                      locations.map((l) => (
-                        <option key={l._id} value={l.location}>
-                          {l.location} —{" "}
-                          {l.isFreeDelivery
-                            ? "FREE delivery"
-                            : `KES ${l.deliveryFee}`}
-                        </option>
-                      ))}
+                    {Array.isArray(locations) && locations.map((l) => (
+                      <option key={l._id} value={l.location}>
+                        {l.location} — {l.isFreeDelivery ? "FREE delivery" : `KES ${l.deliveryFee}`}
+                      </option>
+                    ))}
                   </select>
 
                   {address.location && (
-                    <div
-                      className={`rounded-lg px-4 py-2.5 text-sm font-medium flex items-center gap-2 ${
-                        isFreeDelivery
-                          ? "bg-green-50 text-green-700 border border-green-200"
-                          : "bg-blue-50 text-blue-700 border border-blue-200"
-                      }`}
-                    >
+                    <div className={`rounded-lg px-4 py-2.5 text-sm font-medium flex items-center gap-2 ${
+                      isFreeDelivery
+                        ? "bg-green-50 text-green-700 border border-green-200"
+                        : "bg-blue-50 text-blue-700 border border-blue-200"
+                    }`}>
                       <Truck className="w-4 h-4" />
                       {isFreeDelivery
                         ? "🎉 Free delivery for this area!"
@@ -524,9 +475,7 @@ function CheckoutPage() {
                   <Input
                     placeholder="e.g. Near Total petrol station, Blue gate"
                     value={address.specificAddress}
-                    onChange={(e) =>
-                      setAddress((a) => ({ ...a, specificAddress: e.target.value }))
-                    }
+                    onChange={(e) => setAddress((a) => ({ ...a, specificAddress: e.target.value }))}
                   />
                 </div>
 
@@ -539,15 +488,11 @@ function CheckoutPage() {
                       type="tel"
                       placeholder="0712 345 678"
                       value={address.phone}
-                      onChange={(e) =>
-                        setAddress((a) => ({ ...a, phone: e.target.value }))
-                      }
+                      onChange={(e) => setAddress((a) => ({ ...a, phone: e.target.value }))}
                       className="pl-9"
                     />
                   </div>
-                  <p className="text-xs text-gray-400">
-                    Our delivery team will call this number.
-                  </p>
+                  <p className="text-xs text-gray-400">Our delivery team will call this number.</p>
                 </div>
 
                 {/* Notes */}
@@ -556,9 +501,7 @@ function CheckoutPage() {
                   <Textarea
                     placeholder="Any special instructions for delivery..."
                     value={address.notes}
-                    onChange={(e) =>
-                      setAddress((a) => ({ ...a, notes: e.target.value }))
-                    }
+                    onChange={(e) => setAddress((a) => ({ ...a, notes: e.target.value }))}
                     rows={2}
                   />
                 </div>
@@ -572,7 +515,7 @@ function CheckoutPage() {
               </div>
             )}
 
-            {/* ═══ STEP 2: PAYMENT ═══════════════════════════════════════════ */}
+            {/* ═══ STEP 2: PAYMENT ══════════════════════════════════════════ */}
             {step === 2 && (
               <div className="bg-white rounded-2xl shadow-sm p-6 space-y-5">
                 <div className="flex items-center gap-2 mb-2">
@@ -582,63 +525,55 @@ function CheckoutPage() {
 
                 <div className="space-y-3">
                   {/* Cash on Delivery */}
-                  <button
-                    onClick={() => setPaymentMethod("cod")}
-                    className={`w-full text-left flex items-center gap-4 p-4 rounded-xl border-2 transition-all ${
-                      paymentMethod === "cod"
-                        ? "border-red-600 bg-red-50"
-                        : "border-gray-200 hover:border-gray-300"
-                    }`}
-                  >
-                    <div className="w-10 h-10 rounded-full bg-orange-100 flex items-center justify-center shrink-0">
-                      <Wallet className="w-5 h-5 text-orange-600" />
-                    </div>
-                    <div className="flex-1">
-                      <p className="font-semibold">Cash on Delivery</p>
-                      <p className="text-sm text-gray-500">
-                        Pay when your order arrives at your door
-                      </p>
-                    </div>
-                    <div
-                      className={`w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 ${
-                        paymentMethod === "cod" ? "border-red-600" : "border-gray-300"
+                  {[
+                    {
+                      id: "cod",
+                      icon: <Wallet className="w-5 h-5 text-orange-600" />,
+                      bg: "bg-orange-100",
+                      title: "Cash on Delivery",
+                      desc: "Pay when your order arrives at your door",
+                    },
+                    {
+                      id: "mpesa",
+                      icon: <Smartphone className="w-5 h-5 text-green-600" />,
+                      bg: "bg-green-100",
+                      title: "M-Pesa",
+                      desc: "Pay via Lipa Na M-Pesa STK push",
+                    },
+                    {
+                      id: "paypal",
+                      icon: <CreditCard className="w-5 h-5 text-blue-600" />,
+                      bg: "bg-blue-100",
+                      title: "PayPal",
+                      desc: "Pay securely via PayPal — card or PayPal balance",
+                    },
+                  ].map(({ id, icon, bg, title, desc }) => (
+                    <button key={id}
+                      onClick={() => setPaymentMethod(id)}
+                      className={`w-full text-left flex items-center gap-4 p-4 rounded-xl border-2 transition-all ${
+                        paymentMethod === id
+                          ? "border-red-600 bg-red-50"
+                          : "border-gray-200 hover:border-gray-300"
                       }`}
                     >
-                      {paymentMethod === "cod" && (
-                        <div className="w-2.5 h-2.5 rounded-full bg-red-600" />
-                      )}
-                    </div>
-                  </button>
+                      <div className={`w-10 h-10 rounded-full ${bg} flex items-center justify-center shrink-0`}>
+                        {icon}
+                      </div>
+                      <div className="flex-1">
+                        <p className="font-semibold">{title}</p>
+                        <p className="text-sm text-gray-500">{desc}</p>
+                      </div>
+                      <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 ${
+                        paymentMethod === id ? "border-red-600" : "border-gray-300"
+                      }`}>
+                        {paymentMethod === id && (
+                          <div className="w-2.5 h-2.5 rounded-full bg-red-600" />
+                        )}
+                      </div>
+                    </button>
+                  ))}
 
-                  {/* M-Pesa */}
-                  <button
-                    onClick={() => setPaymentMethod("mpesa")}
-                    className={`w-full text-left flex items-center gap-4 p-4 rounded-xl border-2 transition-all ${
-                      paymentMethod === "mpesa"
-                        ? "border-red-600 bg-red-50"
-                        : "border-gray-200 hover:border-gray-300"
-                    }`}
-                  >
-                    <div className="w-10 h-10 rounded-full bg-green-100 flex items-center justify-center shrink-0">
-                      <Smartphone className="w-5 h-5 text-green-600" />
-                    </div>
-                    <div className="flex-1">
-                      <p className="font-semibold">M-Pesa</p>
-                      <p className="text-sm text-gray-500">
-                        Pay via Lipa Na M-Pesa STK push
-                      </p>
-                    </div>
-                    <div
-                      className={`w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 ${
-                        paymentMethod === "mpesa" ? "border-red-600" : "border-gray-300"
-                      }`}
-                    >
-                      {paymentMethod === "mpesa" && (
-                        <div className="w-2.5 h-2.5 rounded-full bg-red-600" />
-                      )}
-                    </div>
-                  </button>
-
+                  {/* M-Pesa phone input */}
                   {paymentMethod === "mpesa" && (
                     <div className="ml-14 space-y-1.5">
                       <Label>M-Pesa Phone Number</Label>
@@ -658,35 +593,6 @@ function CheckoutPage() {
                       </p>
                     </div>
                   )}
-
-                  {/* PayPal */}
-                  <button
-                    onClick={() => setPaymentMethod("paypal")}
-                    className={`w-full text-left flex items-center gap-4 p-4 rounded-xl border-2 transition-all ${
-                      paymentMethod === "paypal"
-                        ? "border-red-600 bg-red-50"
-                        : "border-gray-200 hover:border-gray-300"
-                    }`}
-                  >
-                    <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center shrink-0">
-                      <CreditCard className="w-5 h-5 text-blue-600" />
-                    </div>
-                    <div className="flex-1">
-                      <p className="font-semibold">PayPal</p>
-                      <p className="text-sm text-gray-500">
-                        Pay securely via PayPal — card or PayPal balance
-                      </p>
-                    </div>
-                    <div
-                      className={`w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 ${
-                        paymentMethod === "paypal" ? "border-red-600" : "border-gray-300"
-                      }`}
-                    >
-                      {paymentMethod === "paypal" && (
-                        <div className="w-2.5 h-2.5 rounded-full bg-red-600" />
-                      )}
-                    </div>
-                  </button>
                 </div>
 
                 <div className="flex gap-3 mt-4">
@@ -703,7 +609,7 @@ function CheckoutPage() {
               </div>
             )}
 
-            {/* ═══ STEP 3: ORDER REVIEW ══════════════════════════════════════ */}
+            {/* ═══ STEP 3: ORDER REVIEW ═════════════════════════════════════ */}
             {step === 3 && (
               <div className="bg-white rounded-2xl shadow-sm p-6 space-y-6">
                 <div className="flex items-center gap-2 mb-2">
@@ -711,106 +617,54 @@ function CheckoutPage() {
                   <h2 className="text-xl font-bold">Review Your Order</h2>
                 </div>
 
-                {/* Delivery Summary */}
+                {/* Delivery summary */}
                 <div className="rounded-xl bg-gray-50 p-4 space-y-2">
                   <h3 className="font-semibold text-sm text-gray-700 flex items-center gap-1.5">
                     <MapPin className="w-4 h-4 text-red-600" /> Delivery Details
                   </h3>
                   <div className="text-sm text-gray-600 space-y-0.5">
-                    <p>
-                      <span className="font-medium">Area:</span> {address.location},{" "}
-                      {address.subCounty}, {address.county}
-                    </p>
+                    <p><span className="font-medium">Area:</span> {address.location}, {address.subCounty}, {address.county}</p>
                     {address.specificAddress && (
-                      <p>
-                        <span className="font-medium">Address:</span>{" "}
-                        {address.specificAddress}
-                      </p>
+                      <p><span className="font-medium">Address:</span> {address.specificAddress}</p>
                     )}
-                    <p>
-                      <span className="font-medium">Phone:</span> {address.phone}
-                    </p>
-                    {address.notes && (
-                      <p>
-                        <span className="font-medium">Notes:</span> {address.notes}
-                      </p>
-                    )}
+                    <p><span className="font-medium">Phone:</span> {address.phone}</p>
+                    {address.notes && <p><span className="font-medium">Notes:</span> {address.notes}</p>}
                     <p className={`font-medium ${isFreeDelivery ? "text-green-600" : ""}`}>
                       <span className="text-gray-600 font-normal">Delivery fee: </span>
                       {isFreeDelivery ? "FREE 🎉" : formatKES(deliveryFee)}
                     </p>
                   </div>
-                  <button
-                    onClick={() => setStep(1)}
-                    className="text-xs text-red-600 hover:underline"
-                  >
-                    Edit
-                  </button>
+                  <button onClick={() => setStep(1)} className="text-xs text-red-600 hover:underline">Edit</button>
                 </div>
 
-                {/* Payment Summary */}
+                {/* Payment summary */}
                 <div className="rounded-xl bg-gray-50 p-4">
                   <h3 className="font-semibold text-sm text-gray-700 flex items-center gap-1.5 mb-2">
                     <CreditCard className="w-4 h-4 text-red-600" /> Payment
                   </h3>
                   <div className="flex items-center gap-3">
-                    {paymentMethod === "cod" && (
-                      <>
-                        <Wallet className="w-4 h-4 text-orange-600" />
-                        <span className="text-sm">Cash on Delivery</span>
-                      </>
-                    )}
-                    {paymentMethod === "mpesa" && (
-                      <>
-                        <Smartphone className="w-4 h-4 text-green-600" />
-                        <span className="text-sm">M-Pesa — {mpesaPhone}</span>
-                      </>
-                    )}
-                    {paymentMethod === "paypal" && (
-                      <>
-                        <CreditCard className="w-4 h-4 text-blue-600" />
-                        <span className="text-sm">PayPal</span>
-                      </>
-                    )}
+                    {paymentMethod === "cod"    && <><Wallet    className="w-4 h-4 text-orange-600" /><span className="text-sm">Cash on Delivery</span></>}
+                    {paymentMethod === "mpesa"  && <><Smartphone className="w-4 h-4 text-green-600" /><span className="text-sm">M-Pesa — {mpesaPhone}</span></>}
+                    {paymentMethod === "paypal" && <><CreditCard className="w-4 h-4 text-blue-600"  /><span className="text-sm">PayPal</span></>}
                   </div>
-                  <button
-                    onClick={() => setStep(2)}
-                    className="text-xs text-red-600 hover:underline mt-1 block"
-                  >
-                    Edit
-                  </button>
+                  <button onClick={() => setStep(2)} className="text-xs text-red-600 hover:underline mt-1 block">Edit</button>
                 </div>
 
                 {/* Items */}
                 <div className="space-y-3">
-                  <h3 className="font-semibold text-sm text-gray-700">
-                    Items ({cartItems.length})
-                  </h3>
+                  <h3 className="font-semibold text-sm text-gray-700">Items ({cartItems.length})</h3>
                   {cartItems.map((item, idx) => {
-                    const price =
-                      Number(item?.salePrice > 0 ? item.salePrice : item?.price) || 0;
+                    const price    = Number(item?.salePrice > 0 ? item.salePrice : item?.price) || 0;
                     const quantity = Number(item?.quantity) || 1;
                     return (
-                      <div
-                        key={idx}
-                        className="flex gap-3 items-center p-3 bg-gray-50 rounded-xl"
-                      >
-                        <img
-                          src={item?.image || ""}
-                          alt={item?.title || "Product"}
-                          className="w-14 h-14 rounded-lg object-cover border"
-                        />
+                      <div key={idx} className="flex gap-3 items-center p-3 bg-gray-50 rounded-xl">
+                        <img src={item?.image || ""} alt={item?.title || "Product"}
+                             className="w-14 h-14 rounded-lg object-cover border" />
                         <div className="flex-1 min-w-0">
-                          <p className="font-medium text-sm truncate">
-                            {item?.title || "Product"}
-                          </p>
-                          <p className="text-xs text-gray-500">
-                            Qty: {quantity} × {formatKES(price)}
-                          </p>
+                          <p className="font-medium text-sm truncate">{item?.title || "Product"}</p>
+                          <p className="text-xs text-gray-500">Qty: {quantity} × {formatKES(price)}</p>
                         </div>
-                        <p className="font-semibold text-sm">
-                          {formatKES(price * quantity)}
-                        </p>
+                        <p className="font-semibold text-sm">{formatKES(price * quantity)}</p>
                       </div>
                     );
                   })}
@@ -819,17 +673,14 @@ function CheckoutPage() {
                 {/* Totals */}
                 <div className="rounded-xl border-2 border-red-100 p-4 space-y-2">
                   <div className="flex justify-between text-sm text-gray-600">
-                    <span>Subtotal</span>
-                    <span>{formatKES(subtotal)}</span>
+                    <span>Subtotal</span><span>{formatKES(subtotal)}</span>
                   </div>
                   <div className="flex justify-between text-sm text-gray-600">
                     <span>Delivery</span>
                     <span>
-                      {isFreeDelivery ? (
-                        <span className="text-green-600 font-medium">FREE</span>
-                      ) : (
-                        formatKES(finalDeliveryFee)
-                      )}
+                      {isFreeDelivery
+                        ? <span className="text-green-600 font-medium">FREE</span>
+                        : formatKES(finalDeliveryFee)}
                     </span>
                   </div>
                   <Separator />
@@ -839,8 +690,7 @@ function CheckoutPage() {
                   </div>
                   {paymentMethod === "cod" && (
                     <p className="text-xs text-orange-600 bg-orange-50 rounded-lg p-2 mt-2">
-                      💵 Please have <strong>{formatKES(totalAmount)}</strong> ready when
-                      your order arrives.
+                      💵 Please have <strong>{formatKES(totalAmount)}</strong> ready when your order arrives.
                     </p>
                   )}
                 </div>
@@ -855,20 +705,14 @@ function CheckoutPage() {
                     className="flex-1 bg-red-700 hover:bg-red-800 font-bold"
                   >
                     {isSubmitting ? (
-                      <>
-                        <Loader2 className="w-4 h-4 mr-2 animate-spin" /> Placing Order...
-                      </>
-                    ) : paymentMethod === "paypal" ? (
-                      "Pay with PayPal"
-                    ) : (
-                      "Place Order"
-                    )}
+                      <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Placing Order...</>
+                    ) : paymentMethod === "paypal" ? "Pay with PayPal" : "Place Order"}
                   </Button>
                 </div>
               </div>
             )}
 
-            {/* ═══ STEP 4: SUCCESS ═══════════════════════════════════════════ */}
+            {/* ═══ STEP 4: SUCCESS ══════════════════════════════════════════ */}
             {step === 4 && (
               <div className="bg-white rounded-2xl shadow-sm p-8 text-center space-y-6">
                 <div className="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mx-auto">
@@ -887,32 +731,16 @@ function CheckoutPage() {
                   )}
                 </div>
 
-                <div
-                  className={`rounded-xl p-4 text-sm ${
-                    paymentMethod === "cod"
-                      ? "bg-orange-50 border border-orange-200 text-orange-700"
-                      : paymentMethod === "mpesa"
-                      ? "bg-green-50 border border-green-200 text-green-700"
-                      : "bg-blue-50 border border-blue-200 text-blue-700"
-                  }`}
-                >
-                  {paymentMethod === "cod" && (
-                    <p>
-                      💵 Please have <strong>{formatKES(totalAmount)}</strong> ready when
-                      our team arrives. They will call{" "}
-                      <strong>{address.phone}</strong> before delivery.
-                    </p>
-                  )}
-                  {paymentMethod === "mpesa" && (
-                    <p>
-                      📱 Check your phone — we sent an M-Pesa payment request to{" "}
-                      <strong>{mpesaPhone}</strong>. Enter your PIN to complete the
-                      payment.
-                    </p>
-                  )}
-                  {paymentMethod === "paypal" && (
-                    <p>✅ Payment confirmed via PayPal. We're now processing your order.</p>
-                  )}
+                <div className={`rounded-xl p-4 text-sm ${
+                  paymentMethod === "cod"
+                    ? "bg-orange-50 border border-orange-200 text-orange-700"
+                    : paymentMethod === "mpesa"
+                    ? "bg-green-50 border border-green-200 text-green-700"
+                    : "bg-blue-50 border border-blue-200 text-blue-700"
+                }`}>
+                  {paymentMethod === "cod"    && <p>💵 Please have <strong>{formatKES(totalAmount)}</strong> ready when our team arrives. They will call <strong>{address.phone}</strong> before delivery.</p>}
+                  {paymentMethod === "mpesa"  && <p>📱 Check your phone — we sent an M-Pesa payment request to <strong>{mpesaPhone}</strong>. Enter your PIN to complete payment.</p>}
+                  {paymentMethod === "paypal" && <p>✅ Payment confirmed via PayPal. We're processing your order.</p>}
                 </div>
 
                 <div className="bg-gray-50 rounded-xl p-4 text-left space-y-2">
@@ -920,10 +748,7 @@ function CheckoutPage() {
                   <div className="space-y-1.5 text-sm text-gray-600">
                     <p>📧 Check your email — we've sent you an order confirmation.</p>
                     <p>📦 We'll notify you by email when your order is dispatched.</p>
-                    <p>
-                      🚚 Our delivery team will call{" "}
-                      <strong>{address.phone}</strong> before arrival.
-                    </p>
+                    <p>🚚 Our delivery team will call <strong>{address.phone}</strong> before arrival.</p>
                     <p>✅ Once delivered, you'll get a final confirmation email.</p>
                   </div>
                 </div>
@@ -938,23 +763,14 @@ function CheckoutPage() {
                     <MessageCircle className="w-5 h-5" />
                     Message Us on WhatsApp
                   </a>
-                  <p className="text-xs text-gray-400">
-                    Chat with us directly for order updates, tracking, or questions.
-                  </p>
+                  <p className="text-xs text-gray-400">Chat with us for order updates or questions.</p>
                 </div>
 
                 <div className="flex gap-3">
-                  <Button
-                    variant="outline"
-                    className="flex-1"
-                    onClick={() => navigate("/shop/account")}
-                  >
+                  <Button variant="outline" className="flex-1" onClick={() => navigate("/shop/account")}>
                     My Orders
                   </Button>
-                  <Button
-                    className="flex-1 bg-red-700 hover:bg-red-800"
-                    onClick={() => navigate("/shop/home")}
-                  >
+                  <Button className="flex-1 bg-red-700 hover:bg-red-800" onClick={() => navigate("/shop/home")}>
                     Continue Shopping
                   </Button>
                 </div>
@@ -962,7 +778,7 @@ function CheckoutPage() {
             )}
           </div>
 
-          {/* ── Sidebar summary ─────────────────────────────────────────────── */}
+          {/* ── Sidebar ─────────────────────────────────────────────────────── */}
           {step < 4 && (
             <div className="hidden lg:block">
               <OrderSummary

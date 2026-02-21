@@ -1,66 +1,81 @@
+// server/controllers/shop/mpesaController.js
+// Rekker M-Pesa controller — handles STK push callbacks from Safaricom.
+// This file is only responsible for processing Safaricom callbacks.
+// The STK push initiation is handled in order-controller.js → initiateMpesaPayment.
+
 const Order = require("../../models/Order");
-const { createToken, stkPush } = require("../../helpers/mpesa");
+const User  = require("../../models/User");
+const { sendOrderConfirmationEmail } = require("../../helpers/email");
 
-const handleMpesaPaymentRequest = async (req, res) => {
-  const { phone, amount, orderData } = req.body;
-
-  try {
-    const token = await createToken();
-
-    const callbackUrl = "https://mydomain.com/api/shop/mpesa/callback"; // Adjust URL as needed
-
-    const response = await stkPush(token, phone, amount, callbackUrl);
-
-    if (response.ResponseCode === "0") {
-      // Optionally save orderData to DB here
-      return res.status(200).json({
-        success: true,
-        message: "STK push sent successfully",
-        data: response,
-      });
-    } else {
-      return res.status(400).json({
-        success: false,
-        message: "STK push failed",
-        data: response,
-      });
-    }
-  } catch (err) {
-    console.error("STK Error:", err.response?.data || err.message);
-    return res.status(500).json({
-      success: false,
-      message: "Something went wrong with the STK push.",
-    });
-  }
-};
-
+/**
+ * POST /api/shop/mpesa/callback
+ * Called by Safaricom when the user completes or cancels the M-Pesa prompt.
+ */
 const handleMpesaCallback = async (req, res) => {
   try {
-    const callbackData = req.body.Body.stkCallback;
+    const callbackData = req.body?.Body?.stkCallback;
+
+    if (!callbackData) {
+      console.error("M-Pesa callback: malformed payload", req.body);
+      return res.status(400).json({ success: false, message: "Malformed callback payload" });
+    }
+
     const checkoutId = callbackData.CheckoutRequestID;
-    const resultCode = callbackData.ResultCode;
+    const resultCode  = callbackData.ResultCode; // 0 = success
+
+    console.log(`M-Pesa callback — CheckoutRequestID: ${checkoutId}, ResultCode: ${resultCode}`);
 
     const order = await Order.findOne({ mpesaCheckoutId: checkoutId });
 
     if (!order) {
-      return res.status(404).json({ success: false, message: "Order not found" });
+      console.error(`M-Pesa callback: no order found for CheckoutRequestID ${checkoutId}`);
+      // Safaricom expects a 200 response regardless
+      return res.status(200).json({ success: false, message: "Order not found" });
     }
 
     order.mpesaCallbackData = callbackData;
-    order.paymentStatus = resultCode === 0 ? "paid" : "failed";
-    order.orderStatus = resultCode === 0 ? "confirmed" : "cancelled";
-    order.orderUpdateDate = new Date();
 
-    await order.save();
+    if (resultCode === 0) {
+      // Payment successful
+      order.paymentStatus = "paid";
+      order.orderStatus   = "confirmed";
 
-    res.status(200).json({ success: true, message: "Callback processed" });
+      // Extract M-Pesa receipt number from callback metadata
+      const metadata = callbackData.CallbackMetadata?.Item || [];
+      const receipt  = metadata.find((i) => i.Name === "MpesaReceiptNumber");
+      if (receipt?.Value) {
+        order.paymentId = receipt.Value;
+      }
+
+      await order.save();
+
+      // Send confirmation email asynchronously
+      try {
+        const user = await User.findById(order.userId).select("email userName");
+        if (user) {
+          sendOrderConfirmationEmail(user, order).catch((e) =>
+            console.error("Confirmation email failed:", e)
+          );
+        }
+      } catch (emailErr) {
+        console.error("Could not fetch user for confirmation email:", emailErr);
+      }
+
+      console.log(`M-Pesa payment confirmed for order ${order._id}`);
+    } else {
+      // Payment failed or cancelled
+      order.paymentStatus = "failed";
+      order.orderStatus   = "pending"; // Keep pending so admin can follow up
+      await order.save();
+      console.log(`M-Pesa payment failed/cancelled for order ${order._id}`);
+    }
+
+    // Safaricom requires a 200 response
+    return res.status(200).json({ success: true, message: "Callback processed" });
   } catch (error) {
-    console.error("Callback error:", error);
-    res.status(500).json({ success: false, message: "Internal server error" });
+    console.error("M-Pesa callback processing error:", error);
+    return res.status(200).json({ success: false, message: "Internal error" });
   }
 };
 
-module.exports = {
-  handleMpesaPaymentRequest,
-  handleMpesaCallback,
-};
+module.exports = { handleMpesaCallback };
