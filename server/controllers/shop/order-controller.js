@@ -1,37 +1,35 @@
 // server/controllers/shop/order-controller.js
-// Rekker shop order controller — handles COD, M-Pesa, and PayPal order creation.
-// FIXES:
-//   1. PayPal: wrapped in Promise so the callback-based API resolves correctly
-//   2. COD + M-Pesa: cart is cleared after successful order placement
-//   3. M-Pesa: improved error handling & phone number normalisation
+// Rekker shop order controller — COD, M-Pesa, and PayPal.
+// KEY FIX: PayPal SDK is loaded lazily inside createPaypalPayment() only.
+//   Previously, requiring paypal-rest-sdk at the top of the file caused it to
+//   call paypal.configure() immediately. If PAYPAL_MODE / PAYPAL_CLIENT_ID /
+//   PAYPAL_CLIENT_SECRET are not set (or wrong), the SDK throws at module-load
+//   time, which crashes the ENTIRE controller — making COD and M-Pesa return
+//   500 too. Lazy-loading isolates the failure to PayPal requests only.
 
-const paypal    = require("../../helpers/paypal");
-const Order     = require("../../models/Order");
-const Cart      = require("../../models/Cart");
-const Product   = require("../../models/Product");
-const User      = require("../../models/User");
-const { createToken, stkPush } = require("../../helpers/mpesa");
-const {
-  sendOrderConfirmationEmail,
-} = require("../../helpers/email");
+const Order   = require("../../models/Order");
+const Cart    = require("../../models/Cart");
+const Product = require("../../models/Product");
+const User    = require("../../models/User");
+
+let sendOrderConfirmationEmail = () => Promise.resolve();
+try {
+  ({ sendOrderConfirmationEmail } = require("../../helpers/email"));
+} catch (e) {
+  console.warn("Email helper not loaded:", e.message);
+}
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-// Fire confirmation email without blocking the response
 const fireConfirmationEmail = async (userId, order) => {
   try {
     const user = await User.findById(userId).select("email userName");
-    if (user) {
-      sendOrderConfirmationEmail(user, order).catch((e) =>
-        console.error("Order confirmation email error:", e)
-      );
-    }
+    if (user) sendOrderConfirmationEmail(user, order).catch(console.error);
   } catch (e) {
-    console.error("Could not send confirmation email:", e);
+    console.error("Confirmation email error:", e.message);
   }
 };
 
-// Clear the user's cart after a successful order
 const clearUserCart = async (userId, cartId) => {
   try {
     if (cartId) {
@@ -39,31 +37,38 @@ const clearUserCart = async (userId, cartId) => {
     } else {
       await Cart.findOneAndDelete({ userId });
     }
-    console.log(`🛒 Cart cleared for user ${userId}`);
+    console.log("🛒 Cart cleared for user", userId);
   } catch (e) {
-    console.error("Cart clearing error (non-fatal):", e);
+    console.error("Cart clear error (non-fatal):", e.message);
   }
 };
 
-// Normalise a Kenyan phone number to the 2547XXXXXXXX format Safaricom expects
 const normalisePhone = (phone) => {
-  const digits = phone.replace(/\D/g, "");
+  const digits = String(phone).replace(/\D/g, "");
   if (digits.startsWith("254")) return digits;
   if (digits.startsWith("0"))   return "254" + digits.slice(1);
   if (digits.startsWith("7") || digits.startsWith("1")) return "254" + digits;
   return digits;
 };
 
-// Wrap the callback-based paypal.payment.create in a Promise
-const createPaypalPayment = (paymentJson) =>
-  new Promise((resolve, reject) => {
+// Wrap the callback-based PayPal SDK in a Promise.
+// PayPal is required HERE (lazily) so a bad config can't crash the module.
+const createPaypalPayment = (paymentJson) => {
+  let paypal;
+  try {
+    paypal = require("../../helpers/paypal");
+  } catch (e) {
+    return Promise.reject(new Error("PayPal SDK failed to load: " + e.message));
+  }
+  return new Promise((resolve, reject) => {
     paypal.payment.create(paymentJson, (error, paymentInfo) => {
       if (error) reject(error);
       else resolve(paymentInfo);
     });
   });
+};
 
-// ─── CREATE ORDER — routes by paymentMethod ───────────────────────────────────
+// ─── CREATE ORDER ─────────────────────────────────────────────────────────────
 const createOrder = async (req, res) => {
   try {
     const {
@@ -78,33 +83,34 @@ const createOrder = async (req, res) => {
       cartId,
     } = req.body;
 
-    // Basic validation
-    if (!userId || !cartItems?.length || !paymentMethod || !totalAmount) {
+    console.log(`📦 createOrder — method: ${paymentMethod}, user: ${userId}, total: ${totalAmount}`);
+
+    if (!userId || !cartItems?.length || !paymentMethod || totalAmount === undefined) {
       return res.status(400).json({
         success: false,
-        message: "Missing required order fields (userId, cartItems, paymentMethod, totalAmount)",
+        message: "Missing required fields: userId, cartItems, paymentMethod, totalAmount",
       });
     }
 
-    // ── CASH ON DELIVERY ─────────────────────────────────────────────────────
+    // ── COD ──────────────────────────────────────────────────────────────────
     if (paymentMethod === "cod") {
       const order = new Order({
         userId,
-        cartId: cartId || null,
+        cartId:         cartId || null,
         cartItems,
         addressInfo,
-        paymentMethod: "cod",
-        paymentStatus: "pending",
-        orderStatus:   "pending",
-        totalAmount,
-        subtotalAmount: subtotalAmount || 0,
-        deliveryFee:    deliveryFee    || 0,
+        paymentMethod:  "cod",
+        paymentStatus:  "pending",
+        orderStatus:    "pending",
+        totalAmount:    Number(totalAmount),
+        subtotalAmount: Number(subtotalAmount) || 0,
+        deliveryFee:    Number(deliveryFee)    || 0,
         orderDate:      orderDate ? new Date(orderDate) : new Date(),
       });
 
       await order.save();
+      console.log("✅ COD order saved:", order._id);
 
-      // Clear cart & send confirmation email (non-blocking)
       clearUserCart(userId, cartId);
       fireConfirmationEmail(userId, order);
 
@@ -122,7 +128,7 @@ const createOrder = async (req, res) => {
         process.env.FRONTEND_URL    ||
         "https://rekker.co.ke";
 
-      const create_payment_json = {
+      const paymentJson = {
         intent: "sale",
         payer:  { payment_method: "paypal" },
         redirect_urls: {
@@ -133,11 +139,11 @@ const createOrder = async (req, res) => {
           {
             item_list: {
               items: cartItems.map((item) => ({
-                name:     item.title,
-                sku:      item.productId,
+                name:     String(item.title).substring(0, 127),
+                sku:      String(item.productId),
                 price:    Number(item.price).toFixed(2),
                 currency: "USD",
-                quantity: item.quantity,
+                quantity: Number(item.quantity),
               })),
             },
             amount: {
@@ -149,64 +155,56 @@ const createOrder = async (req, res) => {
         ],
       };
 
-      // Use the Promise wrapper — avoids "can't set headers after they are sent" bug
       let paymentInfo;
       try {
-        paymentInfo = await createPaypalPayment(create_payment_json);
+        paymentInfo = await createPaypalPayment(paymentJson);
       } catch (paypalError) {
-        console.error("PayPal create payment error:", paypalError?.response || paypalError);
+        console.error("PayPal error:", paypalError?.response || paypalError?.message);
         return res.status(500).json({
           success: false,
-          message: "Error creating PayPal payment. Please try again.",
+          message: "PayPal payment creation failed. Check PAYPAL_MODE, PAYPAL_CLIENT_ID, PAYPAL_CLIENT_SECRET in your server environment.",
         });
       }
 
       const order = new Order({
         userId,
-        cartId: cartId || null,
+        cartId:         cartId || null,
         cartItems,
         addressInfo,
         paymentMethod:  "paypal",
         paymentStatus:  "pending",
         orderStatus:    "pending",
-        totalAmount,
-        subtotalAmount: subtotalAmount || 0,
-        deliveryFee:    deliveryFee    || 0,
+        totalAmount:    Number(totalAmount),
+        subtotalAmount: Number(subtotalAmount) || 0,
+        deliveryFee:    Number(deliveryFee)    || 0,
         orderDate:      orderDate ? new Date(orderDate) : new Date(),
       });
 
       await order.save();
+      console.log("✅ PayPal order saved:", order._id);
 
-      const approvalURL = paymentInfo.links?.find(
-        (link) => link.rel === "approval_url"
-      )?.href;
-
+      const approvalURL = paymentInfo.links?.find((l) => l.rel === "approval_url")?.href;
       if (!approvalURL) {
         return res.status(500).json({
           success: false,
-          message: "PayPal did not return an approval URL. Check PayPal configuration.",
+          message: "PayPal did not return an approval URL.",
         });
       }
 
-      return res.status(201).json({
-        success:     true,
-        approvalURL,
-        orderId:     order._id,
-      });
+      return res.status(201).json({ success: true, approvalURL, orderId: order._id });
     }
 
-    // ── UNKNOWN PAYMENT METHOD ────────────────────────────────────────────────
     return res.status(400).json({
       success: false,
       message: `Unknown payment method: ${paymentMethod}`,
     });
 
   } catch (e) {
-    console.error("createOrder error:", e);
+    console.error("createOrder unhandled error:", e);
     return res.status(500).json({
       success: false,
-      message: "Internal server error creating order",
-      error:   process.env.NODE_ENV !== "production" ? e.message : undefined,
+      message: "Internal server error",
+      detail:  process.env.NODE_ENV !== "production" ? e.message : undefined,
     });
   }
 };
@@ -215,18 +213,14 @@ const createOrder = async (req, res) => {
 const capturePayment = async (req, res) => {
   try {
     const { paymentId, payerId, orderId } = req.body;
-
     const order = await Order.findById(orderId);
-    if (!order) {
-      return res.status(404).json({ success: false, message: "Order not found" });
-    }
+    if (!order) return res.status(404).json({ success: false, message: "Order not found" });
 
     order.paymentStatus = "paid";
     order.orderStatus   = "confirmed";
     order.paymentId     = paymentId;
     order.payerId       = payerId;
 
-    // Decrement stock
     for (const item of order.cartItems) {
       const product = await Product.findById(item.productId);
       if (product) {
@@ -235,26 +229,18 @@ const capturePayment = async (req, res) => {
       }
     }
 
-    // Clear cart
     clearUserCart(order.userId, order.cartId);
-
     await order.save();
-
-    // Send confirmation email
     fireConfirmationEmail(order.userId, order);
 
-    return res.status(200).json({
-      success: true,
-      message: "Payment captured — order confirmed",
-      data:    order,
-    });
+    return res.status(200).json({ success: true, message: "Payment captured", data: order });
   } catch (e) {
     console.error("capturePayment error:", e);
     return res.status(500).json({ success: false, message: "Internal server error" });
   }
 };
 
-// ─── INITIATE M-PESA STK PUSH ─────────────────────────────────────────────────
+// ─── M-PESA STK PUSH ─────────────────────────────────────────────────────────
 const initiateMpesaPayment = async (req, res) => {
   try {
     const { phone, amount, orderData } = req.body;
@@ -266,26 +252,36 @@ const initiateMpesaPayment = async (req, res) => {
       });
     }
 
-    // Normalise phone number to 2547XXXXXXXX
-    const normalisedPhone = normalisePhone(String(phone));
-    console.log(`📱 M-Pesa STK push → ${normalisedPhone}, Amount: ${amount}`);
+    // Load M-Pesa helper lazily for the same isolation reason as PayPal
+    let createToken, stkPush;
+    try {
+      ({ createToken, stkPush } = require("../../helpers/mpesa"));
+    } catch (e) {
+      return res.status(500).json({
+        success: false,
+        message: "M-Pesa helper failed to load: " + e.message,
+      });
+    }
 
-    // Save order first so we have an ID before the STK push
+    const normPhone = normalisePhone(String(phone));
+    console.log(`📱 M-Pesa STK → ${normPhone}, KES ${amount}`);
+
     const order = new Order({
       userId:         orderData.userId,
-      cartId:         orderData.cartId || null,
+      cartId:         orderData.cartId   || null,
       cartItems:      orderData.cartItems,
       addressInfo:    orderData.addressInfo,
       paymentMethod:  "mpesa",
       paymentStatus:  "pending",
       orderStatus:    "pending",
-      totalAmount:    amount,
-      subtotalAmount: orderData.subtotalAmount || 0,
-      deliveryFee:    orderData.deliveryFee    || 0,
+      totalAmount:    Number(amount),
+      subtotalAmount: Number(orderData.subtotalAmount) || 0,
+      deliveryFee:    Number(orderData.deliveryFee)    || 0,
       orderDate:      new Date(),
     });
 
     await order.save();
+    console.log("✅ M-Pesa order saved:", order._id);
 
     const callbackUrl =
       process.env.MPESA_CALLBACK_URL ||
@@ -293,36 +289,32 @@ const initiateMpesaPayment = async (req, res) => {
 
     try {
       const token       = await createToken();
-      const stkResponse = await stkPush(token, normalisedPhone, Math.ceil(amount), callbackUrl);
-
-      console.log("STK push response:", stkResponse);
+      const stkResponse = await stkPush(token, normPhone, Math.ceil(Number(amount)), callbackUrl);
 
       if (stkResponse.CheckoutRequestID) {
         order.mpesaCheckoutId = stkResponse.CheckoutRequestID;
         await order.save();
       }
 
-      // Clear the cart optimistically (M-Pesa callback will confirm payment)
       clearUserCart(orderData.userId, orderData.cartId);
 
       return res.status(200).json({
         success:           true,
-        message:           "STK push sent — please enter your M-Pesa PIN",
+        message:           "STK push sent — enter your M-Pesa PIN",
         orderId:           order._id,
         checkoutRequestId: stkResponse.CheckoutRequestID,
       });
-    } catch (mpesaError) {
-      const errData = mpesaError?.response?.data;
-      console.error("STK push error:", errData || mpesaError.message);
+    } catch (mpesaErr) {
+      const errData = mpesaErr?.response?.data;
+      console.error("STK push failed:", errData || mpesaErr.message);
 
       order.paymentStatus = "failed";
       await order.save();
 
       return res.status(500).json({
         success: false,
-        message: errData?.errorMessage || "M-Pesa STK push failed. Please try again or use a different payment method.",
+        message: errData?.errorMessage || "M-Pesa STK push failed. Try again or use a different payment method.",
         orderId: order._id,
-        detail:  process.env.NODE_ENV !== "production" ? errData : undefined,
       });
     }
   } catch (e) {
@@ -331,16 +323,11 @@ const initiateMpesaPayment = async (req, res) => {
   }
 };
 
-// ─── GET ALL ORDERS FOR A USER ────────────────────────────────────────────────
+// ─── USER ORDER QUERIES ───────────────────────────────────────────────────────
 const getAllOrdersByUser = async (req, res) => {
   try {
-    const { userId } = req.params;
-    const orders = await Order.find({ userId }).sort({ orderDate: -1 });
-
-    if (!orders.length) {
-      return res.status(404).json({ success: false, message: "No orders found" });
-    }
-
+    const orders = await Order.find({ userId: req.params.userId }).sort({ orderDate: -1 });
+    if (!orders.length) return res.status(404).json({ success: false, message: "No orders found" });
     return res.status(200).json({ success: true, data: orders });
   } catch (e) {
     console.error("getAllOrdersByUser error:", e);
@@ -348,13 +335,10 @@ const getAllOrdersByUser = async (req, res) => {
   }
 };
 
-// ─── GET SINGLE ORDER DETAILS ─────────────────────────────────────────────────
 const getOrderDetails = async (req, res) => {
   try {
     const order = await Order.findById(req.params.id);
-    if (!order) {
-      return res.status(404).json({ success: false, message: "Order not found" });
-    }
+    if (!order) return res.status(404).json({ success: false, message: "Order not found" });
     return res.status(200).json({ success: true, data: order });
   } catch (e) {
     console.error("getOrderDetails error:", e);
