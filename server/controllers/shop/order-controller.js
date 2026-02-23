@@ -129,31 +129,23 @@ const createOrder = async (req, res) => {
         "https://rekker.co.ke";
 
       const paymentJson = {
-        intent: "sale",
-        payer:  { payment_method: "paypal" },
-        redirect_urls: {
-          return_url: `${baseUrl}/shop/paypal-return`,
-          cancel_url: `${baseUrl}/shop/paypal-cancel`,
-        },
-        transactions: [
-          {
-            item_list: {
-              items: cartItems.map((item) => ({
-                name:     String(item.title).substring(0, 127),
-                sku:      String(item.productId),
-                price:    Number(item.price).toFixed(2),
-                currency: "USD",
-                quantity: Number(item.quantity),
-              })),
-            },
-            amount: {
-              currency: "USD",
-              total:    Number(totalAmount).toFixed(2),
-            },
-            description: "Rekker order payment",
-          },
-        ],
-      };
+  intent: "sale",
+  payer:  { payment_method: "paypal" },
+  redirect_urls: {
+    return_url: `${baseUrl}/shop/paypal-return`,
+    cancel_url: `${baseUrl}/shop/paypal-cancel`,
+  },
+  transactions: [
+    {
+      amount: {
+        currency: "USD",
+        total:    Number(totalAmount).toFixed(2),
+      },
+      description: "Rekker order payment",
+    },
+  ],
+};
+        
 
       let paymentInfo;
       try {
