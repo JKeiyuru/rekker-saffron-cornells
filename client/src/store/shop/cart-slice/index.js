@@ -1,7 +1,11 @@
+// client/src/store/shop/cart-slice/index.js
+// Rekker shopping cart Redux slice.
+// Added clearCart reducer so the checkout page can clear the cart in state
+// immediately after a successful order, without waiting for a re-fetch.
+
 import axios from "axios";
 import { createSlice, createAsyncThunk } from "@reduxjs/toolkit";
 import { API_BASE_URL } from "@/config/config.js";
-
 
 const initialState = {
   cartItems: [],
@@ -13,13 +17,8 @@ export const addToCart = createAsyncThunk(
   async ({ userId, productId, quantity }) => {
     const response = await axios.post(
       `${API_BASE_URL}/api/shop/cart/add`,
-      {
-        userId,
-        productId,
-        quantity,
-      }
+      { userId, productId, quantity }
     );
-
     return response.data;
   }
 );
@@ -30,7 +29,6 @@ export const fetchCartItems = createAsyncThunk(
     const response = await axios.get(
       `${API_BASE_URL}/api/shop/cart/get/${userId}`
     );
-
     return response.data;
   }
 );
@@ -41,7 +39,6 @@ export const deleteCartItem = createAsyncThunk(
     const response = await axios.delete(
       `${API_BASE_URL}/api/shop/cart/${userId}/${productId}`
     );
-
     return response.data;
   }
 );
@@ -51,13 +48,8 @@ export const updateCartQuantity = createAsyncThunk(
   async ({ userId, productId, quantity }) => {
     const response = await axios.put(
       `${API_BASE_URL}/api/shop/cart/update-cart`,
-      {
-        userId,
-        productId,
-        quantity,
-      }
+      { userId, productId, quantity }
     );
-
     return response.data;
   }
 );
@@ -65,12 +57,15 @@ export const updateCartQuantity = createAsyncThunk(
 const shoppingCartSlice = createSlice({
   name: "shoppingCart",
   initialState,
-  reducers: {},
+  reducers: {
+    // Immediately clear the cart in Redux state (call this after a successful order)
+    clearCart: (state) => {
+      state.cartItems = [];
+    },
+  },
   extraReducers: (builder) => {
     builder
-      .addCase(addToCart.pending, (state) => {
-        state.isLoading = true;
-      })
+      .addCase(addToCart.pending,  (state) => { state.isLoading = true; })
       .addCase(addToCart.fulfilled, (state, action) => {
         state.isLoading = false;
         state.cartItems = action.payload.data;
@@ -79,9 +74,7 @@ const shoppingCartSlice = createSlice({
         state.isLoading = false;
         state.cartItems = [];
       })
-      .addCase(fetchCartItems.pending, (state) => {
-        state.isLoading = true;
-      })
+      .addCase(fetchCartItems.pending,  (state) => { state.isLoading = true; })
       .addCase(fetchCartItems.fulfilled, (state, action) => {
         state.isLoading = false;
         state.cartItems = action.payload.data;
@@ -90,9 +83,7 @@ const shoppingCartSlice = createSlice({
         state.isLoading = false;
         state.cartItems = [];
       })
-      .addCase(updateCartQuantity.pending, (state) => {
-        state.isLoading = true;
-      })
+      .addCase(updateCartQuantity.pending,  (state) => { state.isLoading = true; })
       .addCase(updateCartQuantity.fulfilled, (state, action) => {
         state.isLoading = false;
         state.cartItems = action.payload.data;
@@ -101,9 +92,7 @@ const shoppingCartSlice = createSlice({
         state.isLoading = false;
         state.cartItems = [];
       })
-      .addCase(deleteCartItem.pending, (state) => {
-        state.isLoading = true;
-      })
+      .addCase(deleteCartItem.pending,  (state) => { state.isLoading = true; })
       .addCase(deleteCartItem.fulfilled, (state, action) => {
         state.isLoading = false;
         state.cartItems = action.payload.data;
@@ -115,4 +104,5 @@ const shoppingCartSlice = createSlice({
   },
 });
 
+export const { clearCart } = shoppingCartSlice.actions;
 export default shoppingCartSlice.reducer;

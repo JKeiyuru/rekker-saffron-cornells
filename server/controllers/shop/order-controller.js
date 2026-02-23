@@ -1,7 +1,9 @@
 // server/controllers/shop/order-controller.js
 // Rekker shop order controller — handles COD, M-Pesa, and PayPal order creation.
-// Fixed: createOrder now routes by paymentMethod instead of always running PayPal.
-// Fixed: PayPal redirect URLs read from env so they work in production.
+// FIXES:
+//   1. PayPal: wrapped in Promise so the callback-based API resolves correctly
+//   2. COD + M-Pesa: cart is cleared after successful order placement
+//   3. M-Pesa: improved error handling & phone number normalisation
 
 const paypal    = require("../../helpers/paypal");
 const Order     = require("../../models/Order");
@@ -28,6 +30,38 @@ const fireConfirmationEmail = async (userId, order) => {
     console.error("Could not send confirmation email:", e);
   }
 };
+
+// Clear the user's cart after a successful order
+const clearUserCart = async (userId, cartId) => {
+  try {
+    if (cartId) {
+      await Cart.findByIdAndDelete(cartId);
+    } else {
+      await Cart.findOneAndDelete({ userId });
+    }
+    console.log(`🛒 Cart cleared for user ${userId}`);
+  } catch (e) {
+    console.error("Cart clearing error (non-fatal):", e);
+  }
+};
+
+// Normalise a Kenyan phone number to the 2547XXXXXXXX format Safaricom expects
+const normalisePhone = (phone) => {
+  const digits = phone.replace(/\D/g, "");
+  if (digits.startsWith("254")) return digits;
+  if (digits.startsWith("0"))   return "254" + digits.slice(1);
+  if (digits.startsWith("7") || digits.startsWith("1")) return "254" + digits;
+  return digits;
+};
+
+// Wrap the callback-based paypal.payment.create in a Promise
+const createPaypalPayment = (paymentJson) =>
+  new Promise((resolve, reject) => {
+    paypal.payment.create(paymentJson, (error, paymentInfo) => {
+      if (error) reject(error);
+      else resolve(paymentInfo);
+    });
+  });
 
 // ─── CREATE ORDER — routes by paymentMethod ───────────────────────────────────
 const createOrder = async (req, res) => {
@@ -61,14 +95,17 @@ const createOrder = async (req, res) => {
         addressInfo,
         paymentMethod: "cod",
         paymentStatus: "pending",
-        orderStatus: "pending",
+        orderStatus:   "pending",
         totalAmount,
         subtotalAmount: subtotalAmount || 0,
-        deliveryFee: deliveryFee || 0,
-        orderDate: orderDate ? new Date(orderDate) : new Date(),
+        deliveryFee:    deliveryFee    || 0,
+        orderDate:      orderDate ? new Date(orderDate) : new Date(),
       });
 
       await order.save();
+
+      // Clear cart & send confirmation email (non-blocking)
+      clearUserCart(userId, cartId);
       fireConfirmationEmail(userId, order);
 
       return res.status(201).json({
@@ -82,12 +119,12 @@ const createOrder = async (req, res) => {
     if (paymentMethod === "paypal") {
       const baseUrl =
         process.env.CLIENT_BASE_URL ||
-        process.env.FRONTEND_URL ||
+        process.env.FRONTEND_URL    ||
         "https://rekker.co.ke";
 
       const create_payment_json = {
         intent: "sale",
-        payer: { payment_method: "paypal" },
+        payer:  { payment_method: "paypal" },
         redirect_urls: {
           return_url: `${baseUrl}/shop/paypal-return`,
           cancel_url: `${baseUrl}/shop/paypal-cancel`,
@@ -96,59 +133,66 @@ const createOrder = async (req, res) => {
           {
             item_list: {
               items: cartItems.map((item) => ({
-                name: item.title,
-                sku: item.productId,
-                price: Number(item.price).toFixed(2),
+                name:     item.title,
+                sku:      item.productId,
+                price:    Number(item.price).toFixed(2),
                 currency: "USD",
                 quantity: item.quantity,
               })),
             },
             amount: {
               currency: "USD",
-              total: Number(totalAmount).toFixed(2),
+              total:    Number(totalAmount).toFixed(2),
             },
             description: "Rekker order payment",
           },
         ],
       };
 
-      paypal.payment.create(create_payment_json, async (error, paymentInfo) => {
-        if (error) {
-          console.error("PayPal create payment error:", error);
-          return res.status(500).json({
-            success: false,
-            message: "Error creating PayPal payment",
-          });
-        }
-
-        const order = new Order({
-          userId,
-          cartId: cartId || null,
-          cartItems,
-          addressInfo,
-          paymentMethod: "paypal",
-          paymentStatus: "pending",
-          orderStatus: "pending",
-          totalAmount,
-          subtotalAmount: subtotalAmount || 0,
-          deliveryFee: deliveryFee || 0,
-          orderDate: orderDate ? new Date(orderDate) : new Date(),
+      // Use the Promise wrapper — avoids "can't set headers after they are sent" bug
+      let paymentInfo;
+      try {
+        paymentInfo = await createPaypalPayment(create_payment_json);
+      } catch (paypalError) {
+        console.error("PayPal create payment error:", paypalError?.response || paypalError);
+        return res.status(500).json({
+          success: false,
+          message: "Error creating PayPal payment. Please try again.",
         });
+      }
 
-        await order.save();
-
-        const approvalURL = paymentInfo.links.find(
-          (link) => link.rel === "approval_url"
-        )?.href;
-
-        return res.status(201).json({
-          success: true,
-          approvalURL,
-          orderId: order._id,
-        });
+      const order = new Order({
+        userId,
+        cartId: cartId || null,
+        cartItems,
+        addressInfo,
+        paymentMethod:  "paypal",
+        paymentStatus:  "pending",
+        orderStatus:    "pending",
+        totalAmount,
+        subtotalAmount: subtotalAmount || 0,
+        deliveryFee:    deliveryFee    || 0,
+        orderDate:      orderDate ? new Date(orderDate) : new Date(),
       });
 
-      return; // PayPal callback handles the response
+      await order.save();
+
+      const approvalURL = paymentInfo.links?.find(
+        (link) => link.rel === "approval_url"
+      )?.href;
+
+      if (!approvalURL) {
+        return res.status(500).json({
+          success: false,
+          message: "PayPal did not return an approval URL. Check PayPal configuration.",
+        });
+      }
+
+      return res.status(201).json({
+        success:     true,
+        approvalURL,
+        orderId:     order._id,
+      });
     }
 
     // ── UNKNOWN PAYMENT METHOD ────────────────────────────────────────────────
@@ -162,6 +206,7 @@ const createOrder = async (req, res) => {
     return res.status(500).json({
       success: false,
       message: "Internal server error creating order",
+      error:   process.env.NODE_ENV !== "production" ? e.message : undefined,
     });
   }
 };
@@ -176,10 +221,10 @@ const capturePayment = async (req, res) => {
       return res.status(404).json({ success: false, message: "Order not found" });
     }
 
-    order.paymentStatus  = "paid";
-    order.orderStatus    = "confirmed";
-    order.paymentId      = paymentId;
-    order.payerId        = payerId;
+    order.paymentStatus = "paid";
+    order.orderStatus   = "confirmed";
+    order.paymentId     = paymentId;
+    order.payerId       = payerId;
 
     // Decrement stock
     for (const item of order.cartItems) {
@@ -191,9 +236,7 @@ const capturePayment = async (req, res) => {
     }
 
     // Clear cart
-    if (order.cartId) {
-      await Cart.findByIdAndDelete(order.cartId);
-    }
+    clearUserCart(order.userId, order.cartId);
 
     await order.save();
 
@@ -203,7 +246,7 @@ const capturePayment = async (req, res) => {
     return res.status(200).json({
       success: true,
       message: "Payment captured — order confirmed",
-      data: order,
+      data:    order,
     });
   } catch (e) {
     console.error("capturePayment error:", e);
@@ -214,11 +257,7 @@ const capturePayment = async (req, res) => {
 // ─── INITIATE M-PESA STK PUSH ─────────────────────────────────────────────────
 const initiateMpesaPayment = async (req, res) => {
   try {
-    const {
-      phone,
-      amount,
-      orderData, // full order payload from checkout
-    } = req.body;
+    const { phone, amount, orderData } = req.body;
 
     if (!phone || !amount || !orderData) {
       return res.status(400).json({
@@ -226,6 +265,10 @@ const initiateMpesaPayment = async (req, res) => {
         message: "phone, amount, and orderData are required",
       });
     }
+
+    // Normalise phone number to 2547XXXXXXXX
+    const normalisedPhone = normalisePhone(String(phone));
+    console.log(`📱 M-Pesa STK push → ${normalisedPhone}, Amount: ${amount}`);
 
     // Save order first so we have an ID before the STK push
     const order = new Order({
@@ -238,43 +281,48 @@ const initiateMpesaPayment = async (req, res) => {
       orderStatus:    "pending",
       totalAmount:    amount,
       subtotalAmount: orderData.subtotalAmount || 0,
-      deliveryFee:    orderData.deliveryFee || 0,
+      deliveryFee:    orderData.deliveryFee    || 0,
       orderDate:      new Date(),
     });
 
     await order.save();
 
-    // Initiate STK push
     const callbackUrl =
       process.env.MPESA_CALLBACK_URL ||
       `${process.env.API_BASE_URL || "https://api.rekker.co.ke"}/api/shop/mpesa/callback`;
 
     try {
-      const token = await createToken();
-      const stkResponse = await stkPush(token, phone, amount, callbackUrl);
+      const token       = await createToken();
+      const stkResponse = await stkPush(token, normalisedPhone, Math.ceil(amount), callbackUrl);
 
-      // Store checkout request ID for callback matching
+      console.log("STK push response:", stkResponse);
+
       if (stkResponse.CheckoutRequestID) {
         order.mpesaCheckoutId = stkResponse.CheckoutRequestID;
         await order.save();
       }
 
+      // Clear the cart optimistically (M-Pesa callback will confirm payment)
+      clearUserCart(orderData.userId, orderData.cartId);
+
       return res.status(200).json({
-        success: true,
-        message: "STK push sent — please enter your M-Pesa PIN",
-        orderId: order._id,
+        success:           true,
+        message:           "STK push sent — please enter your M-Pesa PIN",
+        orderId:           order._id,
         checkoutRequestId: stkResponse.CheckoutRequestID,
       });
     } catch (mpesaError) {
-      // If STK push fails, mark order as failed but still return orderId
-      console.error("STK push error:", mpesaError?.response?.data || mpesaError.message);
+      const errData = mpesaError?.response?.data;
+      console.error("STK push error:", errData || mpesaError.message);
+
       order.paymentStatus = "failed";
       await order.save();
 
       return res.status(500).json({
         success: false,
-        message: "M-Pesa STK push failed. Please try again or use a different payment method.",
+        message: errData?.errorMessage || "M-Pesa STK push failed. Please try again or use a different payment method.",
         orderId: order._id,
+        detail:  process.env.NODE_ENV !== "production" ? errData : undefined,
       });
     }
   } catch (e) {

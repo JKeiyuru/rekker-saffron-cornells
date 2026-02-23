@@ -1,9 +1,10 @@
 // client/src/pages/shopping-view/checkout.jsx
 // Rekker multi-step checkout: Delivery → Payment → Review → Success.
-// Fixed: M-Pesa now calls /api/shop/order/mpesa/initiate (was /api/shop/mpesa/initiate).
-// Fixed: PayPal redirect URLs use VITE_CLIENT_BASE_URL env var, not localhost.
-// Fixed: cart items extracted correctly from both array and object redux shapes.
-// Fixed: COD orders no longer go through the PayPal SDK.
+// FIXES:
+//   1. Cart is cleared in Redux state (clearCart) after every successful order.
+//   2. PayPal: cartId included in payload so cart is cleared server-side on capture.
+//   3. M-Pesa: phone normalised before sending; better error display.
+//   4. Saved addresses: users can save up to 2 addresses and select them on checkout.
 
 import { useEffect, useState } from "react";
 import { useDispatch, useSelector } from "react-redux";
@@ -17,16 +18,23 @@ import {
   clearSubCounties,
   clearLocations,
 } from "@/store/shop/delivery-slice";
+import {
+  fetchAllAddresses,
+  addNewAddress,
+  deleteAddress,
+} from "@/store/shop/address-slice";
+import { clearCart } from "@/store/shop/cart-slice";
 import { useToast } from "@/components/ui/use-toast";
-import { Button }   from "@/components/ui/button";
-import { Input }    from "@/components/ui/input";
-import { Label }    from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
+import { Button }    from "@/components/ui/button";
+import { Input }     from "@/components/ui/input";
+import { Label }     from "@/components/ui/label";
+import { Textarea }  from "@/components/ui/textarea";
 import { Separator } from "@/components/ui/separator";
 import {
   MapPin, CreditCard, ClipboardList, CheckCircle,
   ChevronRight, ChevronLeft, Loader2, MessageCircle,
   Truck, Smartphone, Wallet, Phone, ShoppingCart,
+  Bookmark, BookmarkCheck, Trash2, PlusCircle,
 } from "lucide-react";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -38,19 +46,27 @@ const STEPS = [
 ];
 
 const WHATSAPP_NUMBER = "254796183064";
+const MAX_SAVED_ADDRESSES = 2;
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 function formatKES(amount) {
   return `KES ${Number(amount || 0).toLocaleString()}`;
 }
 
-/** Extract the cart items array regardless of whether Redux stored the full
- *  cart object (with .items) or a bare array (e.g. after addToCart). */
 function extractCartItems(cartState) {
   if (!cartState) return [];
   if (Array.isArray(cartState.cartItems))                              return cartState.cartItems;
   if (cartState.cartItems && Array.isArray(cartState.cartItems.items)) return cartState.cartItems.items;
   return [];
+}
+
+// Normalise phone to 2547XXXXXXXX
+function normalisePhone(phone) {
+  const digits = String(phone).replace(/\D/g, "");
+  if (digits.startsWith("254")) return digits;
+  if (digits.startsWith("0"))   return "254" + digits.slice(1);
+  if (digits.startsWith("7") || digits.startsWith("1")) return "254" + digits;
+  return digits;
 }
 
 // ─── Step indicator ───────────────────────────────────────────────────────────
@@ -89,12 +105,12 @@ function StepIndicator({ currentStep }) {
 
 // ─── Order summary sidebar ────────────────────────────────────────────────────
 function OrderSummary({ cartItems = [], deliveryFee, step }) {
-  const safe = Array.isArray(cartItems) ? cartItems : [];
+  const safe     = Array.isArray(cartItems) ? cartItems : [];
   const subtotal = safe.reduce((s, i) => {
     const price = Number(i?.salePrice > 0 ? i.salePrice : i?.price) || 0;
     return s + price * (Number(i?.quantity) || 1);
   }, 0);
-  const total = subtotal + (deliveryFee || 0);
+  const total    = subtotal + (deliveryFee || 0);
 
   return (
     <div className="bg-gray-50 rounded-xl p-5 space-y-4 sticky top-4">
@@ -140,6 +156,51 @@ function OrderSummary({ cartItems = [], deliveryFee, step }) {
   );
 }
 
+// ─── Saved Address Card ───────────────────────────────────────────────────────
+function SavedAddressCard({ address, isSelected, onSelect, onDelete }) {
+  return (
+    <div
+      onClick={onSelect}
+      className={`cursor-pointer rounded-xl border-2 p-4 transition-all ${
+        isSelected
+          ? "border-red-600 bg-red-50"
+          : "border-gray-200 hover:border-gray-300 bg-white"
+      }`}
+    >
+      <div className="flex items-start justify-between gap-2">
+        <div className="flex-1 text-sm">
+          <p className="font-semibold text-gray-800">{address.location}, {address.subCounty}</p>
+          <p className="text-gray-500">{address.county}</p>
+          {address.specificAddress && (
+            <p className="text-gray-600 mt-0.5">{address.specificAddress}</p>
+          )}
+          <p className="text-gray-600 mt-1 flex items-center gap-1">
+            <Phone className="w-3 h-3" /> {address.phone}
+          </p>
+          <p className="mt-1">
+            <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${
+              address.isFreeDelivery || address.deliveryFee === 0
+                ? "bg-green-100 text-green-700"
+                : "bg-blue-100 text-blue-700"
+            }`}>
+              {address.isFreeDelivery || address.deliveryFee === 0
+                ? "FREE delivery"
+                : `KES ${address.deliveryFee} delivery`}
+            </span>
+          </p>
+        </div>
+        <button
+          onClick={(e) => { e.stopPropagation(); onDelete(address._id); }}
+          className="text-gray-400 hover:text-red-600 transition-colors p-1"
+          title="Delete address"
+        >
+          <Trash2 className="w-4 h-4" />
+        </button>
+      </div>
+    </div>
+  );
+}
+
 // ─── MAIN COMPONENT ───────────────────────────────────────────────────────────
 function CheckoutPage() {
   const dispatch  = useDispatch();
@@ -149,12 +210,13 @@ function CheckoutPage() {
   const { user }         = useSelector((s) => s.auth  || {});
   const shopCart         = useSelector((s) => s.shopCart) || {};
   const shopDelivery     = useSelector((s) => s.shopDelivery) || {};
+  const { addressList }  = useSelector((s) => s.shopAddress) || { addressList: [] };
   const cartItems        = extractCartItems(shopCart);
 
   const {
     counties = [],
     subCounties = [],
-    locations  = [],
+    locations   = [],
     isLoading: deliveryLoading = false,
   } = shopDelivery;
 
@@ -162,6 +224,11 @@ function CheckoutPage() {
   const [isSubmitting,  setIsSubmitting]  = useState(false);
   const [placedOrder,   setPlacedOrder]   = useState(null);
   const [isPageLoading, setIsPageLoading] = useState(true);
+
+  // Saved address mode
+  const [selectedSavedAddress, setSelectedSavedAddress] = useState(null);
+  const [useNewAddress,        setUseNewAddress]         = useState(true);
+  const [saveThisAddress,      setSaveThisAddress]       = useState(false);
 
   // Step 1 — address
   const [address, setAddress] = useState({
@@ -183,28 +250,66 @@ function CheckoutPage() {
   const finalDeliveryFee = isFreeDelivery ? 0 : deliveryFee || 0;
   const totalAmount      = subtotal + finalDeliveryFee;
 
-  // Fetch counties on mount
-  useEffect(() => { dispatch(fetchCounties()); }, [dispatch]);
+  // Fetch counties & saved addresses on mount
+  useEffect(() => {
+    dispatch(fetchCounties());
+    if (user?.id) dispatch(fetchAllAddresses(user.id));
+  }, [dispatch, user?.id]);
 
-  // Short loading delay so cart data has time to populate
   useEffect(() => {
     const t = setTimeout(() => setIsPageLoading(false), 800);
     return () => clearTimeout(t);
   }, []);
 
+  // Pre-fill mpesa phone from delivery phone
+  useEffect(() => {
+    if (address.phone && !mpesaPhone) setMpesaPhone(address.phone);
+  }, [address.phone]);
+
+  // ── Saved address selection ─────────────────────────────────────────────────
+  const handleSelectSavedAddress = (saved) => {
+    setSelectedSavedAddress(saved);
+    setUseNewAddress(false);
+    setAddress({
+      county:          saved.county          || "",
+      subCounty:       saved.subCounty       || "",
+      location:        saved.location        || "",
+      specificAddress: saved.specificAddress || "",
+      phone:           saved.phone           || "",
+      notes:           saved.notes           || "",
+    });
+    setDeliveryFee(saved.deliveryFee || 0);
+    setIsFreeDelivery(saved.isFreeDelivery || saved.deliveryFee === 0);
+  };
+
+  const handleUseNewAddress = () => {
+    setSelectedSavedAddress(null);
+    setUseNewAddress(true);
+    setAddress({ county: "", subCounty: "", location: "", specificAddress: "", phone: "", notes: "" });
+    setDeliveryFee(null);
+    setIsFreeDelivery(false);
+    dispatch(clearSubCounties());
+    dispatch(clearLocations());
+  };
+
+  const handleDeleteSavedAddress = async (addressId) => {
+    await dispatch(deleteAddress({ userId: user.id, addressId }));
+    dispatch(fetchAllAddresses(user.id));
+    if (selectedSavedAddress?._id === addressId) handleUseNewAddress();
+    toast({ title: "Address deleted" });
+  };
+
   // ── Address cascades ────────────────────────────────────────────────────────
   const handleCountyChange = (county) => {
     setAddress((a) => ({ ...a, county, subCounty: "", location: "" }));
-    setDeliveryFee(null);
-    setIsFreeDelivery(false);
+    setDeliveryFee(null); setIsFreeDelivery(false);
     dispatch(clearSubCounties());
     if (county) dispatch(fetchSubCounties(county));
   };
 
   const handleSubCountyChange = (subCounty) => {
     setAddress((a) => ({ ...a, subCounty, location: "" }));
-    setDeliveryFee(null);
-    setIsFreeDelivery(false);
+    setDeliveryFee(null); setIsFreeDelivery(false);
     dispatch(clearLocations());
     if (subCounty && address.county)
       dispatch(fetchLocations({ county: address.county, subCounty }));
@@ -213,16 +318,13 @@ function CheckoutPage() {
   const handleLocationChange = (locationName) => {
     setAddress((a) => ({ ...a, location: locationName }));
     const loc = locations.find((l) => l.location === locationName);
-    if (loc) {
-      setDeliveryFee(loc.deliveryFee);
-      setIsFreeDelivery(loc.isFreeDelivery);
-    }
+    if (loc) { setDeliveryFee(loc.deliveryFee); setIsFreeDelivery(loc.isFreeDelivery); }
   };
 
   // ── Validation ──────────────────────────────────────────────────────────────
   const validateAddress = () => {
-    if (!address.county)    { toast({ title: "Please select a county",           variant: "destructive" }); return false; }
-    if (!address.subCounty) { toast({ title: "Please select a sub-county",       variant: "destructive" }); return false; }
+    if (!address.county)    { toast({ title: "Please select a county",            variant: "destructive" }); return false; }
+    if (!address.subCounty) { toast({ title: "Please select a sub-county",        variant: "destructive" }); return false; }
     if (!address.location)  { toast({ title: "Please select a delivery location", variant: "destructive" }); return false; }
     if (!address.phone || address.phone.length < 9) {
       toast({ title: "Please enter a valid phone number", variant: "destructive" }); return false;
@@ -232,18 +334,46 @@ function CheckoutPage() {
 
   const validatePayment = () => {
     if (!paymentMethod) { toast({ title: "Please select a payment method", variant: "destructive" }); return false; }
-    if (paymentMethod === "mpesa" && (!mpesaPhone || mpesaPhone.length < 9)) {
+    if (paymentMethod === "mpesa" && (!mpesaPhone || mpesaPhone.replace(/\D/g,"").length < 9)) {
       toast({ title: "Please enter a valid M-Pesa number", variant: "destructive" }); return false;
     }
     return true;
+  };
+
+  // ── Optionally save address ─────────────────────────────────────────────────
+  const maybeSaveAddress = async () => {
+    if (!saveThisAddress || !useNewAddress) return;
+    const canSave = (addressList || []).length < MAX_SAVED_ADDRESSES;
+    if (!canSave) return;
+
+    try {
+      const loc = locations.find((l) => l.location === address.location);
+      await dispatch(addNewAddress({
+        userId:          user.id,
+        county:          address.county,
+        subCounty:       address.subCounty,
+        location:        address.location,
+        specificAddress: address.specificAddress,
+        address:         [address.specificAddress, address.location, address.subCounty, address.county].filter(Boolean).join(", "),
+        phone:           address.phone,
+        notes:           address.notes,
+        deliveryFee:     loc?.deliveryFee     || 0,
+        isFreeDelivery:  loc?.isFreeDelivery  || false,
+      }));
+      dispatch(fetchAllAddresses(user.id));
+    } catch (e) {
+      console.warn("Address save failed (non-fatal):", e);
+    }
   };
 
   // ── Place order ─────────────────────────────────────────────────────────────
   const handlePlaceOrder = async () => {
     setIsSubmitting(true);
     try {
+      await maybeSaveAddress();
+
       const baseOrderPayload = {
-        userId: user?.id,
+        userId:    user?.id,
         cartItems: cartItems.map((i) => ({
           productId: i.productId,
           title:     i.title,
@@ -277,6 +407,7 @@ function CheckoutPage() {
           { withCredentials: true }
         );
         if (res.data.success) {
+          dispatch(clearCart());
           setPlacedOrder({ ...baseOrderPayload, _id: res.data.orderId });
           setStep(4);
         } else {
@@ -286,16 +417,18 @@ function CheckoutPage() {
 
       // ── M-PESA ──────────────────────────────────────────────────────────────
       else if (paymentMethod === "mpesa") {
+        const normPhone = normalisePhone(mpesaPhone);
         const res = await axios.post(
-          `${API_BASE_URL}/api/shop/order/mpesa/initiate`,   // ← fixed endpoint
+          `${API_BASE_URL}/api/shop/order/mpesa/initiate`,
           {
-            phone:     mpesaPhone,
-            amount:    totalAmount,
+            phone:     normPhone,
+            amount:    Math.ceil(totalAmount),
             orderData: baseOrderPayload,
           },
           { withCredentials: true }
         );
         if (res.data.success) {
+          dispatch(clearCart());
           setPlacedOrder({ ...baseOrderPayload, _id: res.data.orderId });
           setStep(4);
         } else {
@@ -311,7 +444,7 @@ function CheckoutPage() {
           { withCredentials: true }
         );
         if (res.data.approvalURL) {
-          // Save orderId in sessionStorage so paypal-return.jsx can capture it
+          dispatch(clearCart());
           sessionStorage.setItem("pendingOrderId", res.data.orderId);
           window.location.href = res.data.approvalURL;
         } else {
@@ -335,8 +468,8 @@ function CheckoutPage() {
       `Hi Rekker! I just placed order #${orderId} for ${formatKES(totalAmount)}. ` +
       `Delivery to ${address.location}, ${address.subCounty}, ${address.county}. ` +
       `Payment: ${
-        paymentMethod === "cod"   ? "Cash on Delivery"
-        : paymentMethod === "mpesa" ? "M-Pesa"
+        paymentMethod === "cod"    ? "Cash on Delivery"
+        : paymentMethod === "mpesa"  ? "M-Pesa"
         : "PayPal"
       }.`
     );
@@ -355,7 +488,7 @@ function CheckoutPage() {
     );
   }
 
-  if (cartItems.length === 0) {
+  if (cartItems.length === 0 && step < 4) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center max-w-md px-4">
@@ -363,7 +496,7 @@ function CheckoutPage() {
             <ShoppingCart className="w-10 h-10 text-gray-400" />
           </div>
           <h2 className="text-2xl font-bold text-gray-800 mb-2">Your cart is empty</h2>
-          <p className="text-gray-600 mb-6">Add some products to your cart before checking out.</p>
+          <p className="text-gray-600 mb-6">Add some products before checking out.</p>
           <Button onClick={() => navigate("/shop/listing")} className="bg-red-700 hover:bg-red-800">
             Continue Shopping
           </Button>
@@ -371,6 +504,9 @@ function CheckoutPage() {
       </div>
     );
   }
+
+  const savedAddresses = addressList || [];
+  const canSaveMore    = savedAddresses.length < MAX_SAVED_ADDRESSES;
 
   // ── RENDER ──────────────────────────────────────────────────────────────────
   return (
@@ -402,109 +538,173 @@ function CheckoutPage() {
                   <h2 className="text-xl font-bold">Delivery Information</h2>
                 </div>
 
-                {/* County */}
-                <div className="space-y-1.5">
-                  <Label>County *</Label>
-                  <select
-                    className="w-full border rounded-lg px-3 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-red-300"
-                    value={address.county}
-                    onChange={(e) => handleCountyChange(e.target.value)}
-                  >
-                    <option value="">Select county...</option>
-                    {Array.isArray(counties) && counties.map((c) => (
-                      <option key={c} value={c}>{c}</option>
-                    ))}
-                  </select>
-                  {deliveryLoading && address.county && !address.subCounty && (
-                    <p className="text-xs text-gray-400 flex items-center gap-1">
-                      <Loader2 className="w-3 h-3 animate-spin" /> Loading sub-counties...
+                {/* ── Saved Addresses ── */}
+                {savedAddresses.length > 0 && (
+                  <div className="space-y-3">
+                    <p className="text-sm font-semibold text-gray-700 flex items-center gap-1.5">
+                      <BookmarkCheck className="w-4 h-4 text-red-600" />
+                      Your Saved Addresses
                     </p>
-                  )}
-                </div>
-
-                {/* Sub-County */}
-                <div className="space-y-1.5">
-                  <Label>Sub-County *</Label>
-                  <select
-                    className="w-full border rounded-lg px-3 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-red-300 disabled:opacity-50"
-                    value={address.subCounty}
-                    onChange={(e) => handleSubCountyChange(e.target.value)}
-                    disabled={!address.county || subCounties.length === 0}
-                  >
-                    <option value="">Select sub-county...</option>
-                    {Array.isArray(subCounties) && subCounties.map((s) => (
-                      <option key={s} value={s}>{s}</option>
-                    ))}
-                  </select>
-                </div>
-
-                {/* Location */}
-                <div className="space-y-1.5">
-                  <Label>Delivery Area *</Label>
-                  <select
-                    className="w-full border rounded-lg px-3 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-red-300 disabled:opacity-50"
-                    value={address.location}
-                    onChange={(e) => handleLocationChange(e.target.value)}
-                    disabled={!address.subCounty || locations.length === 0}
-                  >
-                    <option value="">Select area...</option>
-                    {Array.isArray(locations) && locations.map((l) => (
-                      <option key={l._id} value={l.location}>
-                        {l.location} — {l.isFreeDelivery ? "FREE delivery" : `KES ${l.deliveryFee}`}
-                      </option>
-                    ))}
-                  </select>
-
-                  {address.location && (
-                    <div className={`rounded-lg px-4 py-2.5 text-sm font-medium flex items-center gap-2 ${
-                      isFreeDelivery
-                        ? "bg-green-50 text-green-700 border border-green-200"
-                        : "bg-blue-50 text-blue-700 border border-blue-200"
-                    }`}>
-                      <Truck className="w-4 h-4" />
-                      {isFreeDelivery
-                        ? "🎉 Free delivery for this area!"
-                        : `Delivery fee: KES ${deliveryFee?.toLocaleString()}`}
+                    <div className="grid gap-3">
+                      {savedAddresses.map((sa) => (
+                        <SavedAddressCard
+                          key={sa._id}
+                          address={sa}
+                          isSelected={selectedSavedAddress?._id === sa._id}
+                          onSelect={() => handleSelectSavedAddress(sa)}
+                          onDelete={handleDeleteSavedAddress}
+                        />
+                      ))}
                     </div>
-                  )}
-                </div>
 
-                {/* Specific address */}
-                <div className="space-y-1.5">
-                  <Label>Specific Address / Landmark</Label>
-                  <Input
-                    placeholder="e.g. Near Total petrol station, Blue gate"
-                    value={address.specificAddress}
-                    onChange={(e) => setAddress((a) => ({ ...a, specificAddress: e.target.value }))}
-                  />
-                </div>
+                    <button
+                      onClick={handleUseNewAddress}
+                      className={`w-full flex items-center justify-center gap-2 py-3 rounded-xl border-2 text-sm font-medium transition-all ${
+                        useNewAddress
+                          ? "border-red-600 bg-red-50 text-red-700"
+                          : "border-dashed border-gray-300 text-gray-500 hover:border-gray-400"
+                      }`}
+                    >
+                      <PlusCircle className="w-4 h-4" />
+                      Use a different / new address
+                    </button>
 
-                {/* Phone */}
-                <div className="space-y-1.5">
-                  <Label>Delivery Phone Number *</Label>
-                  <div className="relative">
-                    <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                    <Input
-                      type="tel"
-                      placeholder="0712 345 678"
-                      value={address.phone}
-                      onChange={(e) => setAddress((a) => ({ ...a, phone: e.target.value }))}
-                      className="pl-9"
-                    />
+                    {!useNewAddress && !selectedSavedAddress && (
+                      <p className="text-xs text-red-500">Please select an address or choose to use a new one.</p>
+                    )}
+
+                    <Separator />
                   </div>
-                  <p className="text-xs text-gray-400">Our delivery team will call this number.</p>
-                </div>
+                )}
 
-                {/* Notes */}
-                <div className="space-y-1.5">
-                  <Label>Delivery Notes (optional)</Label>
-                  <Textarea
-                    placeholder="Any special instructions for delivery..."
-                    value={address.notes}
-                    onChange={(e) => setAddress((a) => ({ ...a, notes: e.target.value }))}
-                    rows={2}
-                  />
-                </div>
+                {/* ── New Address Form ── */}
+                {(useNewAddress || savedAddresses.length === 0) && (
+                  <div className="space-y-4">
+                    {/* County */}
+                    <div className="space-y-1.5">
+                      <Label>County *</Label>
+                      <select
+                        className="w-full border rounded-lg px-3 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-red-300"
+                        value={address.county}
+                        onChange={(e) => handleCountyChange(e.target.value)}
+                      >
+                        <option value="">Select county...</option>
+                        {Array.isArray(counties) && counties.map((c) => (
+                          <option key={c} value={c}>{c}</option>
+                        ))}
+                      </select>
+                      {deliveryLoading && address.county && !address.subCounty && (
+                        <p className="text-xs text-gray-400 flex items-center gap-1">
+                          <Loader2 className="w-3 h-3 animate-spin" /> Loading sub-counties...
+                        </p>
+                      )}
+                    </div>
+
+                    {/* Sub-County */}
+                    <div className="space-y-1.5">
+                      <Label>Sub-County *</Label>
+                      <select
+                        className="w-full border rounded-lg px-3 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-red-300 disabled:opacity-50"
+                        value={address.subCounty}
+                        onChange={(e) => handleSubCountyChange(e.target.value)}
+                        disabled={!address.county || subCounties.length === 0}
+                      >
+                        <option value="">Select sub-county...</option>
+                        {Array.isArray(subCounties) && subCounties.map((s) => (
+                          <option key={s} value={s}>{s}</option>
+                        ))}
+                      </select>
+                    </div>
+
+                    {/* Location */}
+                    <div className="space-y-1.5">
+                      <Label>Delivery Area *</Label>
+                      <select
+                        className="w-full border rounded-lg px-3 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-red-300 disabled:opacity-50"
+                        value={address.location}
+                        onChange={(e) => handleLocationChange(e.target.value)}
+                        disabled={!address.subCounty || locations.length === 0}
+                      >
+                        <option value="">Select area...</option>
+                        {Array.isArray(locations) && locations.map((l) => (
+                          <option key={l._id} value={l.location}>
+                            {l.location} — {l.isFreeDelivery ? "FREE delivery" : `KES ${l.deliveryFee}`}
+                          </option>
+                        ))}
+                      </select>
+
+                      {address.location && (
+                        <div className={`rounded-lg px-4 py-2.5 text-sm font-medium flex items-center gap-2 ${
+                          isFreeDelivery
+                            ? "bg-green-50 text-green-700 border border-green-200"
+                            : "bg-blue-50 text-blue-700 border border-blue-200"
+                        }`}>
+                          <Truck className="w-4 h-4" />
+                          {isFreeDelivery
+                            ? "🎉 Free delivery for this area!"
+                            : `Delivery fee: KES ${deliveryFee?.toLocaleString()}`}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Specific address */}
+                    <div className="space-y-1.5">
+                      <Label>Specific Address / Landmark</Label>
+                      <Input
+                        placeholder="e.g. Near Total petrol station, Blue gate"
+                        value={address.specificAddress}
+                        onChange={(e) => setAddress((a) => ({ ...a, specificAddress: e.target.value }))}
+                      />
+                    </div>
+
+                    {/* Phone */}
+                    <div className="space-y-1.5">
+                      <Label>Delivery Phone Number *</Label>
+                      <div className="relative">
+                        <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                        <Input
+                          type="tel"
+                          placeholder="0712 345 678"
+                          value={address.phone}
+                          onChange={(e) => setAddress((a) => ({ ...a, phone: e.target.value }))}
+                          className="pl-9"
+                        />
+                      </div>
+                      <p className="text-xs text-gray-400">Our delivery team will call this number.</p>
+                    </div>
+
+                    {/* Notes */}
+                    <div className="space-y-1.5">
+                      <Label>Delivery Notes (optional)</Label>
+                      <Textarea
+                        placeholder="Any special instructions for delivery..."
+                        value={address.notes}
+                        onChange={(e) => setAddress((a) => ({ ...a, notes: e.target.value }))}
+                        rows={2}
+                      />
+                    </div>
+
+                    {/* Save address toggle */}
+                    {canSaveMore ? (
+                      <label className="flex items-center gap-3 cursor-pointer p-3 rounded-lg bg-gray-50 border border-gray-200 hover:border-gray-300 transition-colors">
+                        <input
+                          type="checkbox"
+                          checked={saveThisAddress}
+                          onChange={(e) => setSaveThisAddress(e.target.checked)}
+                          className="w-4 h-4 accent-red-700"
+                        />
+                        <span className="flex items-center gap-1.5 text-sm font-medium text-gray-700">
+                          <Bookmark className="w-4 h-4 text-red-600" />
+                          Save this address for future orders
+                        </span>
+                      </label>
+                    ) : (
+                      <p className="text-xs text-orange-600 bg-orange-50 p-2 rounded-lg">
+                        You have reached the maximum of {MAX_SAVED_ADDRESSES} saved addresses. Delete one to save this address.
+                      </p>
+                    )}
+                  </div>
+                )}
 
                 <Button
                   onClick={() => validateAddress() && setStep(2)}
@@ -524,28 +724,27 @@ function CheckoutPage() {
                 </div>
 
                 <div className="space-y-3">
-                  {/* Cash on Delivery */}
                   {[
                     {
-                      id: "cod",
-                      icon: <Wallet className="w-5 h-5 text-orange-600" />,
-                      bg: "bg-orange-100",
+                      id:    "cod",
+                      icon:  <Wallet className="w-5 h-5 text-orange-600" />,
+                      bg:    "bg-orange-100",
                       title: "Cash on Delivery",
-                      desc: "Pay when your order arrives at your door",
+                      desc:  "Pay when your order arrives at your door",
                     },
                     {
-                      id: "mpesa",
-                      icon: <Smartphone className="w-5 h-5 text-green-600" />,
-                      bg: "bg-green-100",
+                      id:    "mpesa",
+                      icon:  <Smartphone className="w-5 h-5 text-green-600" />,
+                      bg:    "bg-green-100",
                       title: "M-Pesa",
-                      desc: "Pay via Lipa Na M-Pesa STK push",
+                      desc:  "Pay via Lipa Na M-Pesa STK push",
                     },
                     {
-                      id: "paypal",
-                      icon: <CreditCard className="w-5 h-5 text-blue-600" />,
-                      bg: "bg-blue-100",
+                      id:    "paypal",
+                      icon:  <CreditCard className="w-5 h-5 text-blue-600" />,
+                      bg:    "bg-blue-100",
                       title: "PayPal",
-                      desc: "Pay securely via PayPal — card or PayPal balance",
+                      desc:  "Pay securely via PayPal — card or PayPal balance",
                     },
                   ].map(({ id, icon, bg, title, desc }) => (
                     <button key={id}
@@ -589,7 +788,7 @@ function CheckoutPage() {
                         />
                       </div>
                       <p className="text-xs text-gray-400">
-                        You'll receive an STK push on this number.
+                        You'll receive an STK push on this number. Enter your PIN to complete payment.
                       </p>
                     </div>
                   )}
@@ -643,9 +842,9 @@ function CheckoutPage() {
                     <CreditCard className="w-4 h-4 text-red-600" /> Payment
                   </h3>
                   <div className="flex items-center gap-3">
-                    {paymentMethod === "cod"    && <><Wallet    className="w-4 h-4 text-orange-600" /><span className="text-sm">Cash on Delivery</span></>}
-                    {paymentMethod === "mpesa"  && <><Smartphone className="w-4 h-4 text-green-600" /><span className="text-sm">M-Pesa — {mpesaPhone}</span></>}
-                    {paymentMethod === "paypal" && <><CreditCard className="w-4 h-4 text-blue-600"  /><span className="text-sm">PayPal</span></>}
+                    {paymentMethod === "cod"    && <><Wallet     className="w-4 h-4 text-orange-600" /><span className="text-sm">Cash on Delivery</span></>}
+                    {paymentMethod === "mpesa"  && <><Smartphone  className="w-4 h-4 text-green-600" /><span className="text-sm">M-Pesa — {mpesaPhone}</span></>}
+                    {paymentMethod === "paypal" && <><CreditCard  className="w-4 h-4 text-blue-600"  /><span className="text-sm">PayPal</span></>}
                   </div>
                   <button onClick={() => setStep(2)} className="text-xs text-red-600 hover:underline mt-1 block">Edit</button>
                 </div>
@@ -691,6 +890,11 @@ function CheckoutPage() {
                   {paymentMethod === "cod" && (
                     <p className="text-xs text-orange-600 bg-orange-50 rounded-lg p-2 mt-2">
                       💵 Please have <strong>{formatKES(totalAmount)}</strong> ready when your order arrives.
+                    </p>
+                  )}
+                  {paymentMethod === "mpesa" && (
+                    <p className="text-xs text-green-700 bg-green-50 rounded-lg p-2 mt-2">
+                      📱 An STK push will be sent to <strong>{mpesaPhone}</strong>. Enter your PIN to complete payment.
                     </p>
                   )}
                 </div>
