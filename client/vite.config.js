@@ -107,14 +107,9 @@ Sitemap: https://rekker.co.ke/sitemap.xml`;
     },
   },
   server: {
-    port: 5173,
+    port: 8080,
     strictPort: false,
     host: '0.0.0.0',
-    hmr: {
-      protocol: 'ws',
-      host: 'localhost',
-      port: 5173,
-    },
     proxy: {
       "/api": {
         target: "http://localhost:5000",
