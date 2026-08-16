@@ -1,16 +1,16 @@
-import { Suspense, lazy, useEffect } from "react";
+import { useEffect } from "react";
 import { Routes, Route, useLocation } from "react-router-dom";
 import SiteLayout from "./components/site/layout";
 
-const Home = lazy(() => import("./pages/corporate/home"));
-const About = lazy(() => import("./pages/corporate/about"));
-const Brands = lazy(() => import("./pages/corporate/brands"));
-const BrandDetail = lazy(() => import("./pages/corporate/brand-detail"));
-const Manufacturing = lazy(() => import("./pages/corporate/manufacturing"));
-const Distribution = lazy(() => import("./pages/corporate/distribution"));
-const Partnerships = lazy(() => import("./pages/corporate/partnerships"));
-const Contact = lazy(() => import("./pages/corporate/contact"));
-const NotFound = lazy(() => import("./pages/corporate/not-found"));
+import Home from "./pages/corporate/home";
+import About from "./pages/corporate/about";
+import Brands from "./pages/corporate/brands";
+import BrandDetail from "./pages/corporate/brand-detail";
+import Manufacturing from "./pages/corporate/manufacturing";
+import Distribution from "./pages/corporate/distribution";
+import Partnerships from "./pages/corporate/partnerships";
+import Contact from "./pages/corporate/contact";
+import NotFound from "./pages/corporate/not-found";
 
 function ScrollToTop() {
   const { pathname } = useLocation();
@@ -22,7 +22,6 @@ export default function App() {
   return (
     <>
       <ScrollToTop />
-      <Suspense fallback={<div className="min-h-[70vh]" />}>
         <Routes>
           <Route element={<SiteLayout />}>
             <Route path="/" element={<Home />} />
@@ -36,7 +35,6 @@ export default function App() {
             <Route path="*" element={<NotFound />} />
           </Route>
         </Routes>
-      </Suspense>
     </>
   );
 }

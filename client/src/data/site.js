@@ -27,7 +27,7 @@ export const brands = [
       "Household surface and floor care",
       "Bulk and retail pack sizes",
     ],
-    shopPath: "/saffron-milan",
+    shopPath: "/brands/saffron",
   },
   {
     slug: "bio-saff",
@@ -44,7 +44,7 @@ export const brands = [
       "Body and skin care",
       "Salon and retail formats",
     ],
-    shopPath: "/bio-saff",
+    shopPath: "/brands/bio-saff",
   },
   {
     slug: "cornells",
@@ -61,7 +61,7 @@ export const brands = [
       "Retail and wholesale supply",
       "Nationwide availability",
     ],
-    shopPath: "/cornells",
+    shopPath: "/brands/cornells",
   },
 ];
 
