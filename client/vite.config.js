@@ -107,8 +107,8 @@ Sitemap: https://rekker.co.ke/sitemap.xml`;
     },
   },
   server: {
-    port: 8080,
-    strictPort: false,
+    port: 8085,
+    strictPort: true,
     host: '0.0.0.0',
     proxy: {
       "/api": {
