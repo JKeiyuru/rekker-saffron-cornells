@@ -5,7 +5,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useLocation } from "react-router-dom";
 import axios from "axios";
 import { Check, Copy, X } from "lucide-react";
-import { API_BASE_URL } from "@/config/config.js";
+import { CONTENT_API_URL as API_BASE_URL } from "@/config/config.js";
 import { resolveLink } from "@/lib/brand-utils";
 
 const FREQ_MS = { day: 864e5, week: 6048e5 };

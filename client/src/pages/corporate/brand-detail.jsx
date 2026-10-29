@@ -68,7 +68,7 @@ export default function BrandDetail() {
               wholesalers and distributors can stock the range directly through our trade team.
             </p>
             <Link
-              to="/partnerships"
+              to="/partnerships#apply"
               className="mt-8 inline-flex items-center gap-2 border border-ink px-6 py-3.5 text-xs font-bold uppercase tracking-[0.14em] transition-colors hover:bg-ink hover:text-white"
             >
               Stock {brand.name}

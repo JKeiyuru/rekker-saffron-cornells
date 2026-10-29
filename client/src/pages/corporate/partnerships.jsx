@@ -1,7 +1,10 @@
-import { Link } from "react-router-dom";
+import { useEffect } from "react";
+import { Link, useLocation } from "react-router-dom";
 import { Handshake, Store, Factory, Globe2 } from "lucide-react";
 import PageHero from "@/components/site/page-hero";
 import Seo from "@/components/site/seo";
+import TradeRequestForm from "@/components/site/trade-request-form";
+import { CONTENT_API_URL } from "@/config/config.js";
 
 const tracks = [
   { icon: Store, title: "Retailers & Stockists", body: "Stock Saffron Milan, Bio Saff and Cornells with trade pricing, merchandising support and reliable resupply." },
@@ -11,6 +14,12 @@ const tracks = [
 ];
 
 export default function PartnershipsPage() {
+  const { hash } = useLocation();
+  useEffect(() => {
+    if (hash !== "#apply") return;
+    const t = setTimeout(() => document.getElementById("apply")?.scrollIntoView({ behavior: "smooth", block: "start" }), 250);
+    return () => clearTimeout(t);
+  }, [hash]);
   return (
     <>
       <Seo
@@ -33,6 +42,17 @@ export default function PartnershipsPage() {
               <p className="mt-3 text-sm leading-relaxed text-muted-foreground">{body}</p>
             </div>
           ))}
+        </div>
+      </section>
+
+      <section id="apply" className="scroll-mt-24 border-t bg-muted py-16 md:py-24">
+        <div className="container-rk grid gap-10 lg:grid-cols-[1fr_2fr]">
+          <div>
+            <span className="eyebrow">Stockists · Wholesalers · Distributors</span>
+            <h2 className="display mt-4 text-3xl md:text-4xl">Apply to stock or distribute Rekker brands.</h2>
+            <p className="mt-5 text-sm leading-relaxed text-muted-foreground">Tell us who you are, where you are and what you want to order. Each brand has a minimum order quantity, shown as you fill in the form. Our trade team replies within 1–2 working days with pricing and delivery terms.</p>
+          </div>
+          <TradeRequestForm apiBase={CONTENT_API_URL} source="corporate" square />
         </div>
       </section>
 

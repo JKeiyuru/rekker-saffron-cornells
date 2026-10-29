@@ -8,7 +8,7 @@
 //   • "Shop <brand>" always uses the real brand slug for the products filter
 import { useEffect, useState } from "react";
 import axios from "axios";
-import { API_BASE_URL } from "@/config/config.js";
+import { CONTENT_API_URL as API_BASE_URL } from "@/config/config.js";
 import { brands as staticBrands } from "@/data/site";
 import { anchorId } from "@/lib/brand-utils";
 

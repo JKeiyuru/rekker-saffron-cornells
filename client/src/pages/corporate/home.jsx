@@ -51,10 +51,10 @@ export default function CorporateHome() {
                   Shop our brands <ArrowUpRight className="h-4 w-4" />
                 </a>
                 <Link
-                  to="/partnerships"
+                  to="/partnerships#apply"
                   className="inline-flex items-center justify-center gap-2 border border-white/25 px-7 py-4 text-xs font-bold uppercase tracking-[0.16em] text-white transition-colors hover:border-white hover:bg-white hover:text-ink"
                 >
-                  Partner with Rekker <ArrowRight className="h-4 w-4" />
+                  Become a stockist <ArrowRight className="h-4 w-4" />
                 </Link>
               </div>
 
