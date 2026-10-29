@@ -1,8 +1,10 @@
 import { Link } from "react-router-dom";
 import { ArrowUpRight, Mail, MapPin, Phone } from "lucide-react";
-import { brands, company, nav, SHOP_URL } from "@/data/site";
+import { company, nav, SHOP_URL } from "@/data/site";
+import useBrands from "@/hooks/use-brands";
 
 export default function SiteFooter() {
+  const { brands } = useBrands();
   return (
     <footer className="bg-ink text-white">
       <div className="container-rk py-16">

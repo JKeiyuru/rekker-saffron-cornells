@@ -27,7 +27,7 @@ export const brands = [
       "Household surface and floor care",
       "Bulk and retail pack sizes",
     ],
-    shopPath: "/brands/saffron",
+    shopPath: "/products?brand=saffron-milan",
   },
   {
     slug: "bio-saff",
@@ -44,7 +44,7 @@ export const brands = [
       "Body and skin care",
       "Salon and retail formats",
     ],
-    shopPath: "/brands/bio-saff",
+    shopPath: "/products?brand=bio-saff",
   },
   {
     slug: "cornells",
@@ -61,7 +61,29 @@ export const brands = [
       "Retail and wholesale supply",
       "Nationwide availability",
     ],
-    shopPath: "/brands/cornells",
+    shopPath: "/products?brand=cornells",
+  },
+  {
+    slug: "petcare",
+    name: "PetCare",
+    category: "Pet Care",
+    color: "leaf",
+    // logo on cards (the banner artwork carries its own text, so it isn't cropped into a card)
+    image: "/images/petcare-logo.jpg",
+    imageFit: "contain",
+    banner: "/images/petcare-banner.jpg",
+    tagline: "Little Paws, Lots of Love. Premium pet shampoo for dogs, cats and horses.",
+    story:
+      "PetCare is Rekker's premium pet-care brand, dedicated to making everyday pet care safer, gentler and more enjoyable. Introduced in January and launched with a premium pet shampoo in May after months of research and product development, PetCare is being built as a brand for all things pets — guided by quality, safety and the well-being of the animals it serves.",
+    highlights: [
+      "Premium pet shampoo for dogs, cats and horses",
+      "Developed with pet safety and well-being in mind",
+      "Quality-led, thoughtful product development",
+      "A growing range of pet-care essentials",
+    ],
+    shopPath: "/products?brand=petcare",
+    isNew: true,
+    isFeatured: true,
   },
 ];
 
@@ -85,7 +107,7 @@ export const capabilities = [
 ];
 
 export const stats = [
-  { value: "3+", label: "Owned & distributed brands" },
+  { value: "4+", label: "Owned & distributed brands" },
   { value: "47", label: "Counties reachable" },
   { value: "1,000+", label: "Retail touchpoints" },
   { value: "24hr", label: "Order turnaround target" },

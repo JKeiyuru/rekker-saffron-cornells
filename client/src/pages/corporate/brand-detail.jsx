@@ -1,12 +1,16 @@
 import { Link, useParams } from "react-router-dom";
 import { ArrowLeft, ArrowUpRight } from "lucide-react";
 import Seo from "@/components/site/seo";
-import { brands, SHOP_URL } from "@/data/site";
+import useBrands from "@/hooks/use-brands";
+import { shopHref } from "@/lib/brand-utils";
+import { anchorId } from "@/lib/brand-utils";
 
 export default function BrandDetail() {
   const { slug } = useParams();
-  const brand = brands.find((b) => b.slug === slug);
+  const { brands, loaded } = useBrands();
+  const brand = brands.find((b) => anchorId(b.slug) === anchorId(slug));
 
+  if (!brand && !loaded) return <div className="container-rk py-32"><div className="h-40 animate-pulse bg-muted" /></div>;
   if (!brand) {
     return (
       <div className="container-rk py-32 text-center">
@@ -28,7 +32,7 @@ export default function BrandDetail() {
 
       <section className="relative isolate overflow-hidden bg-ink text-white">
         <img
-          src={brand.image}
+          src={brand.imageFit === "contain" ? "/images/hero-rekker.jpg" : brand.image}
           alt={brand.name}
           width={1200}
           height={1500}
@@ -42,8 +46,11 @@ export default function BrandDetail() {
           <span className="eyebrow mt-8 block">{brand.category}</span>
           <h1 className="display mt-3 text-4xl md:text-6xl">{brand.name}</h1>
           <p className="mt-5 max-w-2xl text-base text-white/70 md:text-lg">{brand.tagline}</p>
+          {brand.banner && (
+            <img src={brand.banner} alt={`${brand.name} banner`} className="mt-8 w-full max-w-2xl border border-white/15 bg-white" />
+          )}
           <a
-            href={`${SHOP_URL}${brand.shopPath}`}
+            href={shopHref(brand)}
             className="mt-9 inline-flex items-center gap-2 bg-primary px-7 py-4 text-xs font-bold uppercase tracking-[0.16em] text-primary-foreground transition-colors hover:bg-white hover:text-ink"
           >
             Shop the {brand.name} collection <ArrowUpRight className="h-4 w-4" />
